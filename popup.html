@@ -78,7 +78,11 @@
       background: var(--card);
       border: 1px solid var(--border);
       border-radius: var(--radius-xl);
-      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+      /* Внешняя тень + блик по верхней кромке: на тёмном фоне одна лишь
+         заливка читается как дырка, а не как поверхность. */
+      box-shadow:
+        0 1px 2px rgba(0, 0, 0, 0.08),
+        inset 0 1px 0 rgba(255, 255, 255, 0.04);
       margin-bottom: 10px;
     }
 
@@ -108,13 +112,28 @@
       padding: 14px;
     }
 
+    /* CardTitle: обычный регистр, font-semibold, цвет переднего плана.
+       Капс с разрядкой, который был здесь раньше, — приём из дашбордов
+       Vercel, а не shadcn: он занижает заголовок до служебной подписи. */
     .section-title {
-      font-size: 11px;
-      font-weight: 500;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      line-height: 1;
+      letter-spacing: -0.01em;
+      color: var(--foreground);
+      margin-bottom: 12px;
+    }
+
+    /* Иконки lucide (MIT): 24×24, обводка 2, без заливки. Приглушены,
+       чтобы вести взгляд, но не спорить с заголовком. */
+    .section-title svg {
+      flex: none;
+      width: 15px;
+      height: 15px;
       color: var(--muted-foreground);
-      margin-bottom: 10px;
     }
 
     /* Label: text-sm font-medium, обычный текст переднего плана —
@@ -128,6 +147,25 @@
       margin-bottom: 7px;
     }
 
+    /* Поле с иконкой: иконка абсолютом, полю добавлен левый отступ.
+       pointer-events: none — чтобы клик по иконке проваливался в поле,
+       а не съедался ею. */
+    .input-wrap {
+      position: relative;
+      display: block;
+    }
+
+    .input-wrap svg {
+      position: absolute;
+      left: 11px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 14px;
+      height: 14px;
+      color: var(--muted-foreground);
+      pointer-events: none;
+    }
+
     /* Input: почти прозрачная заливка (dark:bg-input/30 в оригинале),
        а не сплошная card-заливка. */
     input[type="text"] {
@@ -137,7 +175,7 @@
       border: 1px solid var(--input);
       border-radius: var(--radius-md);
       color: var(--foreground);
-      padding: 0 11px;
+      padding: 0 11px 0 33px;
       font-size: 13px;
       font-family: var(--font-mono);
       outline: none;
@@ -154,14 +192,17 @@
       box-shadow: 0 0 0 3px rgba(115, 115, 115, 0.5);
     }
 
-    /* --- Превью итогового пути --- */
+    /* --- Превью итогового пути ---
+       Без подложки: она вплотную примыкала к подсветке строки с тумблером,
+       и два прямоугольника подряд читались как один сломанный блок.
+       Иерархия держится тремя ступенями серого, а не заливкой.
+       Нижнее поле разводит превью и область наведения строки. */
     .preview {
-      margin-top: 7px;
+      margin: 8px 0 6px;
       font-family: var(--font-mono);
       font-size: 11px;
       line-height: 1.45;
-      color: var(--muted-foreground);
-      opacity: 0.75;
+      color: #737373;
       word-break: break-all;
     }
 
@@ -171,16 +212,26 @@
 
     .preview .leaf {
       color: var(--muted-foreground);
-      opacity: 1;
     }
 
-    /* --- Строка с тумблером --- */
+    /* --- Строка с тумблером ---
+       Вся строка — это <label>, поэтому клик по тексту тоже переключает:
+       попадать в тумблер 32×18px было мелко. Отрицательные поля растягивают
+       подсветку на всю ширину карточки, не сдвигая содержимое. */
     .row {
       display: flex;
       align-items: center;
       justify-content: space-between;
       gap: 12px;
-      margin-top: 11px;
+      margin: 2px -8px 0;
+      padding: 6px 8px;
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      transition: background-color 0.15s ease;
+    }
+
+    .row:hover {
+      background: rgba(255, 255, 255, 0.035);
     }
 
     .row-label {
@@ -266,8 +317,21 @@
       color: #e5484d;
     }
 
+    /* Badge из shadcn: rounded-md, рамка, компактные поля. */
     .footer .version {
+      padding: 1px 7px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
       font-family: var(--font-mono);
+      font-size: 10.5px;
+      line-height: 1.5;
+      color: var(--muted-foreground);
+    }
+
+    /* Пустой бейдж (если версию не удалось прочитать) не должен
+       висеть голой рамкой. */
+    .footer .version:empty {
+      display: none;
     }
   </style>
 </head>
@@ -278,45 +342,72 @@
   </div>
 
   <div class="card section">
-    <div class="section-title">Video &amp; GIF</div>
+    <div class="section-title">
+      <!-- lucide/video -->
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="m16 13 5.223 3.482a.5.5 0 0 0 .777-.416V7.87a.5.5 0 0 0-.752-.432L16 10.5" />
+        <rect x="2" y="6" width="14" height="12" rx="2" />
+      </svg>
+      Video &amp; GIF
+    </div>
     <label class="field-label" for="videoSubfolder">Subfolder inside Downloads</label>
-    <input type="text" id="videoSubfolder" placeholder="TwitterVideos" />
+    <span class="input-wrap">
+      <!-- lucide/folder -->
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z" />
+      </svg>
+      <input type="text" id="videoSubfolder" placeholder="TwitterVideos" />
+    </span>
     <div class="preview" id="videoPreview"></div>
-    <div class="row">
+    <label class="row">
       <span class="row-label">Convert GIFs to real .gif</span>
-      <label class="switch">
+      <span class="switch">
         <input type="checkbox" id="gifConvert" />
         <span class="slider"></span>
-      </label>
-    </div>
-    <div class="row">
+      </span>
+    </label>
+    <label class="row">
       <span class="row-label">Ask every time</span>
-      <label class="switch">
+      <span class="switch">
         <input type="checkbox" id="videoAlwaysAsk" />
         <span class="slider"></span>
-      </label>
-    </div>
+      </span>
+    </label>
   </div>
 
   <div class="card section">
-    <div class="section-title">Images</div>
+    <div class="section-title">
+      <!-- lucide/image -->
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <rect width="18" height="18" x="3" y="3" rx="2" ry="2" />
+        <circle cx="9" cy="9" r="2" />
+        <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" />
+      </svg>
+      Images
+    </div>
     <label class="field-label" for="photoSubfolder">Subfolder</label>
-    <input type="text" id="photoSubfolder" placeholder="TwitterImages" />
+    <span class="input-wrap">
+      <!-- lucide/folder -->
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z" />
+      </svg>
+      <input type="text" id="photoSubfolder" placeholder="TwitterImages" />
+    </span>
     <div class="preview" id="photoPreview"></div>
-    <div class="row">
+    <label class="row">
       <span class="row-label">Sort into folders by author</span>
-      <label class="switch">
+      <span class="switch">
         <input type="checkbox" id="photoByAuthor" />
         <span class="slider"></span>
-      </label>
-    </div>
-    <div class="row">
+      </span>
+    </label>
+    <label class="row">
       <span class="row-label">Ask every time</span>
-      <label class="switch">
+      <span class="switch">
         <input type="checkbox" id="photoAlwaysAsk" />
         <span class="slider"></span>
-      </label>
-    </div>
+      </span>
+    </label>
   </div>
 
   <div class="footer">
