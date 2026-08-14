@@ -2,6 +2,20 @@
   // Firefox использует browser.*, Chrome — chrome.*
   const browser = globalThis.browser ?? globalThis.chrome;
 
+  // Медиа X всегда лежит на twimg.com. Проверяем здесь, а не в content.js:
+  // тот работает на странице твиттера, и прислать ему поддельное сообщение
+  // с чужим адресом может любой скрипт этой страницы.
+  function isAllowedMediaUrl(url) {
+    try {
+      const u = new URL(url);
+      if (u.protocol !== "https:" && u.protocol !== "http:") return false;
+      const host = u.hostname.toLowerCase();
+      return host === "twimg.com" || host.endsWith(".twimg.com");
+    } catch (e) {
+      return false;
+    }
+  }
+
   function waitForDownload(downloadId) {
     return new Promise((resolve) => {
       let done = false;
@@ -35,6 +49,9 @@
   }
 
   async function handleDownload(msg) {
+    if (!isAllowedMediaUrl(msg.url)) {
+      return { success: false, error: "url is not on twimg.com" };
+    }
     try {
       const downloadId = await browser.downloads.download({
         url: msg.url,
@@ -59,10 +76,20 @@
 
   // Content script не может забрать файл с video.twimg.com напрямую: там нет
   // заголовков CORS. У фонового скрипта есть host_permissions, ему можно.
-  async function fetchMedia(url) {
+  async function fetchMedia(url, maxBytes) {
+    if (!isAllowedMediaUrl(url)) {
+      return { success: false, error: "url is not on twimg.com" };
+    }
     try {
       const res = await fetch(url);
       if (!res.ok) return { success: false, error: `HTTP ${res.status}` };
+      // Отказываем по заголовку, пока тело не прочитано: иначе крупный ролик
+      // сначала выкачается целиком и раздуется в base64, и только потом будет
+      // отброшен по размеру.
+      const declared = Number(res.headers.get("content-length"));
+      if (maxBytes && Number.isFinite(declared) && declared > maxBytes) {
+        return { success: false, error: "source is too large" };
+      }
       const buf = new Uint8Array(await res.arrayBuffer());
       return { success: true, base64: bytesToBase64(buf), size: buf.length };
     } catch (e) {
@@ -89,18 +116,21 @@
     if (!browser.offscreen) throw new Error("offscreen API is unavailable");
     if (browser.offscreen.hasDocument && (await browser.offscreen.hasDocument())) return;
     if (!offscreenPending) {
-      offscreenPending = browser.offscreen
-        .createDocument({
-          url: "offscreen.html",
-          reasons: ["BLOBS"],
-          justification: "Create a blob URL for the converted GIF",
-        })
-        .catch((e) => {
-          offscreenPending = null;
-          throw e;
-        });
+      offscreenPending = browser.offscreen.createDocument({
+        url: "offscreen.html",
+        reasons: ["BLOBS"],
+        justification: "Create a blob URL for the converted GIF",
+      });
     }
-    await offscreenPending;
+    // Промис нужен только чтобы не создать документ дважды из параллельных
+    // вызовов. Держать его после завершения нельзя: документ могли закрыть,
+    // и тогда следующий вызов проскочил бы мимо создания на готовом промисе.
+    const pending = offscreenPending;
+    try {
+      await pending;
+    } finally {
+      if (offscreenPending === pending) offscreenPending = null;
+    }
   }
 
   async function makeBlobUrl(base64, mime) {
@@ -168,7 +198,7 @@
       return true;
     }
     if (msg.type === "fetchMedia" && msg.url) {
-      fetchMedia(msg.url).then(sendResponse);
+      fetchMedia(msg.url, msg.maxBytes).then(sendResponse);
       return true;
     }
     if (msg.type === "downloadData" && msg.base64) {

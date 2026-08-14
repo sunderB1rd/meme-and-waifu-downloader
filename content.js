@@ -48,11 +48,11 @@
     };
     (document.head || document.documentElement).appendChild(script);
   }
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", injectPageScript, { once: true });
-  } else {
-    injectPageScript();
-  }
+  // Внедряем немедленно, а не по DOMContentLoaded: X успевает отправить первые
+  // запросы GraphQL задолго до него, и хуки fetch/XHR вставали уже после них —
+  // у постов из первой отрисовки кнопки не появлялись до скролла. На
+  // document_start documentElement уже существует, ждать нечего.
+  injectPageScript();
 
   // --- Ключ картинки: в ленте адрес вида /media/ABC, из API — /media/ABC.jpg ---
   function baseMediaKey(url) {
@@ -150,7 +150,7 @@
     const date = formatDate(info.createdAt);
     const idx = typeof index === "number" ? `_${index + 1}` : "";
     const gifMark = kind === "gif" ? "_gif" : "";
-    return `${author}_${date}_${tweetId}${gifMark}${idx}.${ext}`;
+    return `${author}_${date}_${sanitize(tweetId)}${gifMark}${idx}.${ext}`;
   }
 
   async function buildPath(filename, kind, screenName) {
@@ -229,7 +229,13 @@
   async function mp4ToGif(url) {
     if (!globalThis.XVDGifEncoder) throw new Error("encoder is not loaded");
 
-    const res = await browser.runtime.sendMessage({ type: "fetchMedia", url });
+    // Предел передаём отсюда, чтобы он остался в одном месте: фоновый скрипт
+    // отсечёт файл по Content-Length, не скачивая его целиком.
+    const res = await browser.runtime.sendMessage({
+      type: "fetchMedia",
+      url,
+      maxBytes: GIF_MAX_SOURCE_BYTES,
+    });
     if (!res || !res.success) {
       throw new Error((res && res.error) || "fetch failed");
     }
@@ -266,7 +272,14 @@
 
       for (let t = 0; t < duration && frames.length < GIF_MAX_FRAMES; t += step) {
         video.currentTime = t;
-        await waitEvent(video, "seeked");
+        try {
+          await waitEvent(video, "seeked");
+        } catch (e) {
+          // Один сорвавшийся кадр не повод терять всю конвертацию: с уже
+          // набранными кадрами гифка выйдет короче, но рабочая.
+          if (frames.length) break;
+          throw e;
+        }
         ctx.drawImage(video, 0, 0, width, height);
         frames.push(ctx.getImageData(0, 0, width, height).data);
       }

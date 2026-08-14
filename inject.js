@@ -5,7 +5,6 @@
 (function () {
   if (window.__xvdInjected) return;
   window.__xvdInjected = true;
-  console.log("[XVD] inject.js загружен и активен");
 
   const API_PATTERN = /graphql\/.+\/(TweetDetail|TweetResultByRestId|UserTweets|HomeTimeline|HomeLatestTimeline|SearchTimeline|TweetResultsByIds|Bookmarks|Likes|ListLatestTweetsTimeline|CommunityTweetsTimeline)/i;
 

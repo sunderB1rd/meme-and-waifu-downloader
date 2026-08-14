@@ -83,7 +83,7 @@ node build.mjs
 | `offscreen.html` / `offscreen.js` | Только для Chrome. Создаёт blob URL для готового GIF — в service worker это невозможно. В Firefox файлы лежат без дела. |
 | `manifest.chrome.json` | Chrome. Фоновый скрипт как `service_worker`, разрешение `offscreen`, без gecko-полей. |
 
-Настройки лежат в `storage.local` под ключами `videoSubfolder`, `videoAlwaysAsk`, `photoSubfolder`, `photoAlwaysAsk`, `photoByAuthor`. Они переживают обновление и переустановку расширения — если что-то ведёт себя странно, стоит заглянуть туда первым делом.
+Настройки лежат в `storage.local` под ключами `videoSubfolder`, `videoAlwaysAsk`, `photoSubfolder`, `photoAlwaysAsk`, `photoByAuthor`, `gifConvert`. Они переживают обновление и переустановку расширения — если что-то ведёт себя странно, стоит заглянуть туда первым делом.
 
 ---
 
@@ -111,6 +111,7 @@ node build.mjs
 | `content.js` есть, `inject.js` нет | Не проходит внедрение. Смотреть `web_accessible_resources` и ошибки CSP. |
 | Оба есть, но «пришло медиа» не появляется | **Самый вероятный случай.** X переименовал операции GraphQL — чинить `API_PATTERN` в `inject.js`. |
 | Медиа приходит, кнопок нет | Изменилась вёрстка. Чинить селекторы в `content.js`. |
+| Кнопки есть, в консоли `url is not on twimg.com` | X отдаёт медиа с нового домена. Фоновый скрипт пускает на скачивание только `*.twimg.com` — править `isAllowedMediaUrl` в `background.js`. |
 
 ### Что именно править
 
