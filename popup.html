@@ -4,16 +4,57 @@
   <meta charset="UTF-8" />
   <title>Settings</title>
   <style>
+    /*
+      Geist — шрифт Vercel, тот же, что в витрине shadcn/ui. Лежит внутри
+      расширения: CSP страниц расширения запрещает внешние источники, через
+      CDN его не подключить. Файлы вариативные, поэтому одного хватает на все
+      начертания (400/500/600). Лицензия SIL OFL 1.1 — fonts/LICENSE.txt.
+    */
+    @font-face {
+      font-family: "Geist";
+      src: url("fonts/Geist-Variable.woff2") format("woff2");
+      font-weight: 100 900;
+      font-style: normal;
+      font-display: swap;
+    }
+
+    @font-face {
+      font-family: "Geist Mono";
+      src: url("fonts/GeistMono-Variable.woff2") format("woff2");
+      font-weight: 100 900;
+      font-style: normal;
+      font-display: swap;
+    }
+
+    /*
+      Токены и масштаб радиусов — прямой перенос значений из :root/.dark
+      шаблона shadcn/ui (тема neutral, oklch переведён в ближайший hex,
+      т.к. WebView расширений не везде поддерживает oklch()).
+      Источники: apps/v4/app/globals.css и ui/switch.tsx, ui/input.tsx,
+      ui/label.tsx, ui/card.tsx из shadcn-ui/ui на GitHub.
+
+      Высота: попап в Firefox и Chrome обрезается на 600px и дальше даёт
+      скролл. Всё, что ниже, рассчитано примерно на 540px — запас нужен,
+      потому что превью пути при длинной подпапке переносится на 2-3 строки.
+    */
     :root {
-      --bg: #000000;
-      --card: #0a0a0a;
-      --border: rgba(255, 255, 255, 0.145);
-      --border-hover: rgba(255, 255, 255, 0.3);
-      --text: #fafafa;
-      --text-secondary: #8f8f8f;
-      --text-tertiary: #757575;
-      --accent: #fafafa;
-      --radius: 8px;
+      --radius: 0.625rem;
+      --radius-sm: calc(var(--radius) * 0.6);
+      --radius-md: calc(var(--radius) * 0.8);
+      --radius-xl: calc(var(--radius) * 1.4);
+
+      --background: #0a0a0a;        /* oklch(0.145 0 0) */
+      --foreground: #fafafa;        /* oklch(0.985 0 0) */
+      --card: #171717;              /* oklch(0.205 0 0) — на ступень светлее фона */
+      --primary: #e5e5e5;           /* oklch(0.922 0 0) — трек включённого свитча */
+      --primary-foreground: #171717;/* oklch(0.205 0 0) — бегунок на включённом треке */
+      --muted-foreground: #a3a3a3;  /* oklch(0.708 0 0) */
+      --border: rgba(255, 255, 255, 0.1);  /* oklch(1 0 0 / 10%) */
+      --input: rgba(255, 255, 255, 0.15);  /* oklch(1 0 0 / 15%) */
+      --ring: #737373;              /* oklch(0.556 0 0) */
+
+      --font-sans: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+      --font-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
     }
 
     * {
@@ -21,112 +62,106 @@
     }
 
     body {
-      width: 320px;
+      width: 360px;
       margin: 0;
-      background: var(--bg);
-      color: var(--text);
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+      padding: 12px 12px 0;
+      background: var(--background);
+      color: var(--foreground);
+      font-family: var(--font-sans);
       font-size: 14px;
+      -webkit-font-smoothing: antialiased;
     }
 
-    /* --- Шапка с градиентом --- */
-    .header {
-      position: relative;
-      height: 96px;
-      border-bottom: 1px solid var(--border);
-      overflow: hidden;
-      background:
-        linear-gradient(105deg, rgba(0, 0, 0, 0.92) 0%, rgba(0, 0, 0, 0.7) 48%, rgba(0, 0, 0, 0.25) 82%),
-        radial-gradient(circle at 72% 8%, #b5822b 0%, rgba(181, 130, 43, 0) 52%),
-        radial-gradient(circle at 95% 52%, #a8497a 0%, rgba(168, 73, 122, 0) 58%),
-        radial-gradient(circle at 62% 105%, #6d4499 0%, rgba(109, 68, 153, 0) 62%),
-        radial-gradient(circle at 108% 95%, #454b9e 0%, rgba(69, 75, 158, 0) 55%),
-        #0b0b12;
-    }
-
-    /* зернистость поверх градиента */
-    .header::after {
-      content: "";
-      position: absolute;
-      inset: 0;
-      pointer-events: none;
-      opacity: 0.28;
-      mix-blend-mode: overlay;
-      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E");
-    }
-
-    .header-text {
-      position: absolute;
-      left: 18px;
-      bottom: 16px;
-      right: 18px;
-      z-index: 1;
-    }
-
-    .header-text h1 {
-      font-size: 16.5px;
-      font-weight: 600;
-      line-height: 1.25;
-      margin: 0 0 3px;
-      letter-spacing: -0.015em;
-    }
-
-    .header-text p {
-      margin: 0;
-      font-size: 12px;
-      color: var(--text-secondary);
-    }
-
-    /* --- Секции --- */
-    .section {
-      padding: 14px 18px 16px;
-      border-bottom: 1px solid var(--border);
-    }
-
-    .section-title {
-      font-size: 11.5px;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      color: var(--text-secondary);
+    /* Общая оболочка для шапки и секций: Card из shadcn —
+       bg-card + border + shadow-sm + rounded-xl. */
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-xl);
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
       margin-bottom: 10px;
     }
 
+    /* --- Заголовок страницы: типографика CardTitle + CardDescription
+           из shadcn (leading-none font-semibold / text-sm muted). --- */
+    .page-header {
+      padding: 4px 4px 14px;
+    }
+
+    .page-header h1 {
+      font-size: 16px;
+      font-weight: 600;
+      line-height: 1;
+      letter-spacing: -0.01em;
+      margin: 0 0 7px;
+    }
+
+    .page-header p {
+      margin: 0;
+      font-size: 13px;
+      line-height: 1.4;
+      color: var(--muted-foreground);
+    }
+
+    /* --- Секции настроек --- */
+    .section {
+      padding: 14px;
+    }
+
+    .section-title {
+      font-size: 11px;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--muted-foreground);
+      margin-bottom: 10px;
+    }
+
+    /* Label: text-sm font-medium, обычный текст переднего плана —
+       не приглушённый, как было в исходной вёрстке. */
     label.field-label {
       display: block;
-      font-size: 12px;
-      color: var(--text-secondary);
-      margin-bottom: 6px;
+      font-size: 13px;
+      font-weight: 500;
+      line-height: 1;
+      color: var(--foreground);
+      margin-bottom: 7px;
     }
 
+    /* Input: почти прозрачная заливка (dark:bg-input/30 в оригинале),
+       а не сплошная card-заливка. */
     input[type="text"] {
       width: 100%;
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      color: var(--text);
-      padding: 8px 10px;
+      height: 34px;
+      background: rgba(255, 255, 255, 0.045);
+      border: 1px solid var(--input);
+      border-radius: var(--radius-md);
+      color: var(--foreground);
+      padding: 0 11px;
       font-size: 13px;
-      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-family: var(--font-mono);
       outline: none;
-      transition: border-color 0.15s ease;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
     }
 
-    input[type="text"]:hover {
-      border-color: var(--border-hover);
+    input[type="text"]::placeholder {
+      color: var(--muted-foreground);
     }
 
-    input[type="text"]:focus {
-      border-color: var(--accent);
+    input[type="text"]:focus-visible {
+      border-color: var(--ring);
+      box-shadow: 0 0 0 3px rgba(115, 115, 115, 0.5);
     }
 
     /* --- Превью итогового пути --- */
     .preview {
-      margin-top: 8px;
-      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-      font-size: 11.5px;
-      line-height: 1.5;
-      color: var(--text-tertiary);
+      margin-top: 7px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      line-height: 1.45;
+      color: var(--muted-foreground);
+      opacity: 0.75;
       word-break: break-all;
     }
 
@@ -135,7 +170,8 @@
     }
 
     .preview .leaf {
-      color: var(--text-secondary);
+      color: var(--muted-foreground);
+      opacity: 1;
     }
 
     /* --- Строка с тумблером --- */
@@ -144,15 +180,25 @@
       align-items: center;
       justify-content: space-between;
       gap: 12px;
-      margin-top: 12px;
+      margin-top: 11px;
     }
 
     .row-label {
       font-size: 13px;
-      color: var(--text);
+      font-weight: 500;
+      color: var(--foreground);
       line-height: 1.3;
     }
 
+    /* Switch: геометрия по ui/switch.tsx — трек w-8 (32px), бегунок size-4
+       (16px), сдвиг translate-x-[calc(100%-2px)] = 14px. Бегунок именно
+       флекс-элемент, а не абсолютный: при абсолютном позиционировании отступ
+       в 1px складывался с рамкой трека и кругляш вылезал за правый край.
+       Высота трека 18px, а не 1.15rem (18.4px) из оригинала: при дробной
+       высоте контентная коробка получалась 16.4px против 16px бегунка, и
+       браузер округлял этот люфт по-разному в зависимости от вертикальной
+       позиции — одинаковые свитчи выглядели по-разному. На 18px коробка
+       ровно 16px, люфта нет. */
     .switch {
       position: relative;
       display: inline-block;
@@ -173,46 +219,47 @@
     .switch .slider {
       position: absolute;
       inset: 0;
-      background: rgba(255, 255, 255, 0.16);
+      display: flex;
+      align-items: center;
+      background: rgba(255, 255, 255, 0.12); /* dark:data-[state=unchecked]:bg-input/80 */
+      border: 1px solid transparent;
       border-radius: 9999px;
-      transition: background-color 0.15s ease, box-shadow 0.15s ease;
+      transition: background-color 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
       pointer-events: none;
     }
 
     .switch .slider::before {
       content: "";
-      position: absolute;
-      width: 14px;
-      height: 14px;
-      left: 2px;
-      top: 2px;
-      background: #0a0a0a;
+      flex: none;
+      width: 16px;
+      height: 16px;
+      background: var(--foreground); /* dark:data-[state=unchecked]:bg-foreground */
       border-radius: 50%;
+      transform: translateX(0);
       transition: transform 0.15s ease, background-color 0.15s ease;
     }
 
     .switch input:checked + .slider {
-      background: var(--accent);
+      background: var(--primary); /* data-[state=checked]:bg-primary */
     }
 
     .switch input:checked + .slider::before {
-      transform: translateX(14px);
+      background: var(--primary-foreground); /* dark:data-[state=checked]:bg-primary-foreground */
+      transform: translateX(14px); /* translate-x-[calc(100%-2px)] для бегунка 16px */
     }
 
     .switch input:focus-visible + .slider {
-      box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px rgba(255, 255, 255, 0.5);
+      border-color: var(--ring); /* focus-visible:border-ring */
+      box-shadow: 0 0 0 3px rgba(115, 115, 115, 0.5); /* focus-visible:ring-[3px] ring-ring/50 */
     }
 
-    .switch input:not(:checked) + .slider::before {
-      background: #d4d4d4;
-    }
     .footer {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 12px 18px 14px;
+      padding: 2px 4px 12px;
       font-size: 11.5px;
-      color: var(--text-tertiary);
+      color: var(--muted-foreground);
     }
 
     .footer .heart {
@@ -220,19 +267,17 @@
     }
 
     .footer .version {
-      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-family: var(--font-mono);
     }
   </style>
 </head>
 <body>
-  <div class="header">
-    <div class="header-text">
-      <h1>Waifu &amp; Meme Downloader</h1>
-      <p>Download settings</p>
-    </div>
+  <div class="page-header">
+    <h1>Waifu &amp; Meme Downloader</h1>
+    <p>Download settings</p>
   </div>
 
-  <div class="section">
+  <div class="card section">
     <div class="section-title">Video &amp; GIF</div>
     <label class="field-label" for="videoSubfolder">Subfolder inside Downloads</label>
     <input type="text" id="videoSubfolder" placeholder="TwitterVideos" />
@@ -253,7 +298,7 @@
     </div>
   </div>
 
-  <div class="section">
+  <div class="card section">
     <div class="section-title">Images</div>
     <label class="field-label" for="photoSubfolder">Subfolder</label>
     <input type="text" id="photoSubfolder" placeholder="TwitterImages" />

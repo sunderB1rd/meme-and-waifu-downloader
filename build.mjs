@@ -18,6 +18,7 @@ const SHARED = [
   "background.js",
   "popup.html",
   "popup.js",
+  "fonts",
   "offscreen.html",
   "offscreen.js",
   "style.css",

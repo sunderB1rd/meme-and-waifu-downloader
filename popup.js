@@ -24,7 +24,7 @@
   };
 
   // Пример, на котором показываем итоговый путь
-  const SAMPLE_AUTHOR = "artist";
+  const SAMPLE_AUTHOR = "author";
   const SAMPLE_DATE = "2026-08-13";
   const SAMPLE_ID = "1234567890";
 
