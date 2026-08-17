@@ -573,6 +573,145 @@
     });
   }
 
+  // --- Копирование картинки в буфер по Ctrl+C ---
+  // Только в полноэкранном просмотрщике: там картинка одна, и не нужно гадать,
+  // какую из четырёх в посте имел в виду пользователь.
+  //
+  // Смысл в качестве: у браузера есть своё «Копировать изображение», но оно
+  // берёт то, что отрисовано, а в ленте X отдаёт уменьшенные версии. Мы кладём
+  // в буфер тот же оригинал (name=orig), что скачала бы кнопка.
+
+  const VIEWER_PATH = /\/status\/\d+\/photo\/\d+/;
+
+  function viewerPhotoImg() {
+    if (!VIEWER_PATH.test(location.pathname)) return null;
+    const dialog = document.querySelector('div[aria-modal="true"], div[role="dialog"]');
+    const imgs = (dialog || document).querySelectorAll('img[src*="pbs.twimg.com/media/"]');
+    // В модалке снизу бывает полоса миниатюр — берём самую крупную картинку.
+    let best = null;
+    let bestArea = 0;
+    for (const img of imgs) {
+      const rect = img.getBoundingClientRect();
+      const area = rect.width * rect.height;
+      if (area > bestArea) {
+        bestArea = area;
+        best = img;
+      }
+    }
+    return bestArea > 0 ? best : null;
+  }
+
+  // Браузеры надёжно принимают в буфер только PNG, поэтому JPEG и webp
+  // приходится перерисовывать через canvas. PNG отдаём как есть.
+  async function bytesToPngBlob(bytes, ext) {
+    const mime = ext === "jpg" ? "image/jpeg" : `image/${ext}`;
+    const source = new Blob([bytes], { type: mime });
+    if (ext === "png") return source;
+
+    const url = URL.createObjectURL(source);
+    try {
+      const img = new Image();
+      img.src = url;
+      await img.decode();
+
+      const canvas = document.createElement("canvas");
+      canvas.width = img.naturalWidth;
+      canvas.height = img.naturalHeight;
+      canvas.getContext("2d").drawImage(img, 0, 0);
+
+      return await new Promise((resolve, reject) => {
+        canvas.toBlob(
+          (blob) => (blob ? resolve(blob) : reject(new Error("canvas.toBlob вернул пустоту"))),
+          "image/png"
+        );
+      });
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+  }
+
+  async function photoAsPng(photo) {
+    // Забираем через фоновый скрипт: у pbs.twimg.com нет CORS-заголовков,
+    // content script сам файл не получит.
+    const res = await browser.runtime.sendMessage({ type: "fetchMedia", url: photo.url });
+    if (!res || !res.success) throw new Error((res && res.error) || "fetch failed");
+    return bytesToPngBlob(base64ToBytes(res.base64), photo.ext || "jpg");
+  }
+
+  let toastTimer = null;
+  function toast(text, ok) {
+    let el = document.querySelector(".xvd-toast");
+    if (!el) {
+      el = document.createElement("div");
+      el.className = "xvd-toast";
+      document.body.appendChild(el);
+    }
+    el.textContent = text;
+    el.classList.toggle("xvd-toast-error", !ok);
+    el.classList.add("xvd-toast-show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => el.classList.remove("xvd-toast-show"), 1800);
+  }
+
+  let copyBusy = false;
+
+  // Слушаем на фазе перехвата: у X свои обработчики клавиш, и они могут
+  // остановить всплытие раньше нас.
+  document.addEventListener(
+    "keydown",
+    async (e) => {
+      // e.code, а не e.key: на не-латинской раскладке key придёт кириллицей.
+      if (e.code !== "KeyC") return;
+      if (!(e.ctrlKey || e.metaKey) || e.altKey || e.shiftKey) return;
+
+      // Пользователь печатает — не вмешиваемся.
+      const active = document.activeElement;
+      if (
+        active &&
+        (active.tagName === "INPUT" ||
+          active.tagName === "TEXTAREA" ||
+          active.isContentEditable)
+      ) {
+        return;
+      }
+
+      // Выделен текст — копирование принадлежит браузеру.
+      const selection = window.getSelection();
+      if (selection && !selection.isCollapsed && String(selection).trim()) return;
+
+      const img = viewerPhotoImg();
+      if (!img || !img.src) return;
+
+      const match = lookupPhoto(baseMediaKey(img.src));
+      if (!match) return;
+      const photo = match.info.photos[match.idx];
+
+      e.preventDefault();
+      if (copyBusy) return;
+      copyBusy = true;
+
+      try {
+        const png = photoAsPng(photo);
+        try {
+          // Промис внутри ClipboardItem держит жест «свежим», пока картинка
+          // качается: иначе долгая загрузка съедала бы окно пользовательского
+          // действия и браузер отказывал бы в записи.
+          await navigator.clipboard.write([new ClipboardItem({ "image/png": png })]);
+        } catch (err) {
+          // Не всякий браузер принимает промис — тогда дожидаемся блоба.
+          await navigator.clipboard.write([new ClipboardItem({ "image/png": await png })]);
+        }
+        toast("Image copied", true);
+      } catch (err) {
+        console.warn("[XVD] copy failed:", err);
+        toast("Copy failed", false);
+      } finally {
+        copyBusy = false;
+      }
+    },
+    true
+  );
+
   function getTweetId(article) {
     const links = article.querySelectorAll('a[href*="/status/"]');
     for (const a of links) {

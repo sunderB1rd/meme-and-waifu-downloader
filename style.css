@@ -107,3 +107,32 @@ div[data-testid="tweetPhoto"]:hover .xvd-photo-btn,
   opacity: 1;
   background: rgba(244, 33, 46, 0.75);
 }
+
+/* Подсказка о копировании в буфер. Ctrl+C ничего не показывает сам по себе,
+   без ответа непонятно, сработало или нет. */
+.xvd-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 32px;
+  z-index: 2147483647;
+  transform: translate(-50%, 8px);
+  padding: 8px 14px;
+  border-radius: 9999px;
+  background: rgba(29, 155, 240, 0.95);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 500;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.xvd-toast.xvd-toast-show {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+.xvd-toast.xvd-toast-error {
+  background: rgba(244, 33, 46, 0.95);
+}

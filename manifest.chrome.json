@@ -6,7 +6,8 @@
   "permissions": [
     "downloads",
     "storage",
-    "offscreen"
+    "offscreen",
+    "clipboardWrite"
   ],
   "action": {
     "default_popup": "popup.html",

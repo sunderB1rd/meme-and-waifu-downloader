@@ -5,7 +5,8 @@
   "description": "Download videos and images straight from your X (Twitter) feed in one click.",
   "permissions": [
     "downloads",
-    "storage"
+    "storage",
+    "clipboardWrite"
   ],
   "action": {
     "default_popup": "popup.html",
