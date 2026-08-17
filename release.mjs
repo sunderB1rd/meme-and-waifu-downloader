@@ -24,6 +24,7 @@
 
 import {
   readFileSync,
+  writeFileSync,
   mkdirSync,
   existsSync,
   readdirSync,
@@ -39,9 +40,36 @@ const dist = join(root, "dist");
 const artifacts = join(root, "..", "meme-and-waifu-downloader-artifacts");
 
 const NAME = "waifu-and-meme-downloader";
+const REPO = "sunderB1rd/meme-and-waifu-downloader";
 const sign = process.argv.includes("--sign");
 
-const version = JSON.parse(readFileSync(join(root, "manifest.json"), "utf8")).version;
+const manifest = JSON.parse(readFileSync(join(root, "manifest.json"), "utf8"));
+const version = manifest.version;
+const geckoId = manifest.browser_specific_settings.gecko.id;
+
+// --- Манифест обновлений ---
+// Firefox ходит за ним по update_url из manifest.json и смотрит, есть ли
+// версия новее установленной. Генерируем здесь, чтобы номер и ссылка на файл
+// не разъезжались с манифестом при ручной правке.
+//
+// Ссылка ведёт на ассет релиза с тегом v<версия>. Имена детерминированы, но
+// если переименовать файл при заливке на GitHub — обновления встанут молча.
+//
+// Историю версий не храним: Firefox нужна только та, что новее установленной.
+const updates = {
+  addons: {
+    [geckoId]: {
+      updates: [
+        {
+          version,
+          update_link: `https://github.com/${REPO}/releases/download/v${version}/${NAME}-${version}-firefox.xpi`,
+        },
+      ],
+    },
+  },
+};
+writeFileSync(join(root, "updates.json"), JSON.stringify(updates, null, 2) + "\n");
+console.log(`updates.json обновлён до ${version}`);
 
 // --- Пересборка ---
 execFileSync("node", ["build.mjs"], { cwd: root, stdio: "inherit" });

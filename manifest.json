@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Waifu and Meme Downloader",
-  "version": "1.11.0",
+  "version": "1.11.1",
   "description": "Download videos and images straight from your X (Twitter) feed in one click.",
   "permissions": [
     "downloads",
@@ -65,7 +65,8 @@
   ],
   "browser_specific_settings": {
     "gecko": {
-      "id": "xvd-extension@local.personal"
+      "id": "xvd-extension@local.personal",
+      "update_url": "https://raw.githubusercontent.com/sunderB1rd/meme-and-waifu-downloader/main/updates.json"
     }
   }
 }
