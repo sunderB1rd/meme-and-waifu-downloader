@@ -6,7 +6,17 @@
   if (window.__xvdInjected) return;
   window.__xvdInjected = true;
 
-  const API_PATTERN = /graphql\/.+\/(TweetDetail|TweetResultByRestId|UserTweets|HomeTimeline|HomeLatestTimeline|SearchTimeline|TweetResultsByIds|Bookmarks|Likes|ListLatestTweetsTimeline|CommunityTweetsTimeline)/i;
+  // Раньше здесь был список имён операций (TweetDetail, HomeTimeline и так
+  // далее). X переименовывает их без предупреждения, и каждое переименование
+  // означало молча пропавшие кнопки — так отвалилась лента на странице
+  // пользователя. Плюс вкладки профиля («Медиа», «Ответы») ходят своими
+  // операциями, которых в списке не было вовсе.
+  //
+  // Поэтому берём любой ответ GraphQL, а отбор делает сам разбор:
+  // processTweetNode молча пропускает всё, где нет медиа. Цена — лишний
+  // разбор JSON на ответах без твитов; выигрыш — расширение перестаёт
+  // зависеть от того, как X сегодня называет свои запросы.
+  const API_PATTERN = /\/graphql\//i;
 
   function processTweetNode(node, found) {
     const legacy = node.legacy;
@@ -118,7 +128,13 @@
   const origFetch = window.fetch;
   window.fetch = function (...args) {
     const urlArg = args[0];
-    const url = typeof urlArg === "string" ? urlArg : urlArg && urlArg.url;
+    // fetch принимает строку, Request (адрес в .url) и URL (адрес в .href).
+    // Раньше проверялось только .url, поэтому вызов с объектом URL давал
+    // undefined и такой запрос вообще не рассматривался.
+    const url =
+      typeof urlArg === "string"
+        ? urlArg
+        : (urlArg && (urlArg.url || urlArg.href)) || "";
     const promise = origFetch.apply(this, args);
     if (url && API_PATTERN.test(url)) {
       promise
@@ -134,7 +150,8 @@
   const origSend = XMLHttpRequest.prototype.send;
 
   XMLHttpRequest.prototype.open = function (method, url, ...rest) {
-    this.__xvdUrl = url;
+    // Сюда тоже может прийти объект URL, а не строка.
+    this.__xvdUrl = url == null ? "" : String(url);
     return origOpen.call(this, method, url, ...rest);
   };
 
