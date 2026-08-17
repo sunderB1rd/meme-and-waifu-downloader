@@ -581,18 +581,40 @@
   // берёт то, что отрисовано, а в ленте X отдаёт уменьшенные версии. Мы кладём
   // в буфер тот же оригинал (name=orig), что скачала бы кнопка.
 
-  const VIEWER_PATH = /\/status\/\d+\/photo\/\d+/;
+  const VIEWER_PATH = /\/status\/(\d+)\/photo\/(\d+)/;
 
-  function viewerPhotoImg() {
-    if (!VIEWER_PATH.test(location.pathname)) return null;
+  // Номер снимка берём из адреса, а не из DOM: в карусели X держит все
+  // картинки поста одновременно и одинакового размера, просто сдвинув лишние
+  // за край экрана. Выбор «самой крупной» давал ничью, и всегда побеждала
+  // первая — при четырёх картинках копировалась не та.
+  function viewerPhoto() {
+    const match = VIEWER_PATH.exec(location.pathname);
+    if (!match) return null;
+
+    const info = mediaMap.get(match[1]);
+    const idx = Number(match[2]) - 1;
+    if (info && info.photos[idx]) return { info, idx, photo: info.photos[idx] };
+
+    // Запасной путь на случай, если данных по этому посту у нас нет.
+    const img = visiblePhotoImg();
+    if (!img || !img.src) return null;
+    const found = lookupPhoto(baseMediaKey(img.src));
+    if (!found) return null;
+    return { info: found.info, idx: found.idx, photo: found.info.photos[found.idx] };
+  }
+
+  // Считаем площадь пересечения с экраном, а не собственный размер картинки:
+  // у сдвинутых за край кадров карусели она нулевая.
+  function visiblePhotoImg() {
     const dialog = document.querySelector('div[aria-modal="true"], div[role="dialog"]');
     const imgs = (dialog || document).querySelectorAll('img[src*="pbs.twimg.com/media/"]');
-    // В модалке снизу бывает полоса миниатюр — берём самую крупную картинку.
     let best = null;
     let bestArea = 0;
     for (const img of imgs) {
-      const rect = img.getBoundingClientRect();
-      const area = rect.width * rect.height;
+      const r = img.getBoundingClientRect();
+      const w = Math.max(0, Math.min(r.right, window.innerWidth) - Math.max(r.left, 0));
+      const h = Math.max(0, Math.min(r.bottom, window.innerHeight) - Math.max(r.top, 0));
+      const area = w * h;
       if (area > bestArea) {
         bestArea = area;
         best = img;
@@ -679,12 +701,9 @@
       const selection = window.getSelection();
       if (selection && !selection.isCollapsed && String(selection).trim()) return;
 
-      const img = viewerPhotoImg();
-      if (!img || !img.src) return;
-
-      const match = lookupPhoto(baseMediaKey(img.src));
-      if (!match) return;
-      const photo = match.info.photos[match.idx];
+      const target = viewerPhoto();
+      if (!target) return;
+      const photo = target.photo;
 
       e.preventDefault();
       if (copyBusy) return;
