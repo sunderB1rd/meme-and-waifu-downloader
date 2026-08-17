@@ -9,10 +9,17 @@
     photoAlwaysAsk: false,
     photoByAuthor: false,
     gifConvert: true,
+    copyShortcut: true,
   };
 
   const textFields = ["videoSubfolder", "photoSubfolder"];
-  const toggleFields = ["videoAlwaysAsk", "photoAlwaysAsk", "photoByAuthor", "gifConvert"];
+  const toggleFields = [
+    "videoAlwaysAsk",
+    "photoAlwaysAsk",
+    "photoByAuthor",
+    "gifConvert",
+    "copyShortcut",
+  ];
 
   const els = {};
   for (const key of [...textFields, ...toggleFields]) {

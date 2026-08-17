@@ -113,9 +113,9 @@ div[data-testid="tweetPhoto"]:hover .xvd-photo-btn,
 .xvd-toast {
   position: fixed;
   left: 50%;
-  bottom: 32px;
+  top: 16px;
   z-index: 2147483647;
-  transform: translate(-50%, 8px);
+  transform: translate(-50%, -8px);
   padding: 8px 14px;
   border-radius: 9999px;
   background: rgba(29, 155, 240, 0.95);

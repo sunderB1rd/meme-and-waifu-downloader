@@ -18,6 +18,7 @@
     photoAlwaysAsk: false,
     photoByAuthor: false,
     gifConvert: true,
+    copyShortcut: true,
   };
 
   // Параметры конвертации. X отдаёт «гифки» как mp4, поэтому настоящий .gif
@@ -32,8 +33,25 @@
     settingsCache = await browser.storage.local.get(DEFAULT_SETTINGS);
     return settingsCache;
   }
+  // Обработчик Ctrl+C должен решить, вмешиваться ли, до вызова
+  // preventDefault — то есть синхронно. Асинхронный getSettings() для этого
+  // не годится, поэтому держим значение отдельной переменной и обновляем её
+  // при старте и при каждом изменении настроек.
+  let copyShortcutEnabled = DEFAULT_SETTINGS.copyShortcut;
+  async function refreshCopyShortcut() {
+    try {
+      copyShortcutEnabled = !!(await getSettings()).copyShortcut;
+    } catch (e) {
+      /* настройки недоступны — остаёмся на значении по умолчанию */
+    }
+  }
+  refreshCopyShortcut();
+
   browser.storage.onChanged.addListener((changes, area) => {
-    if (area === "local") settingsCache = null;
+    if (area === "local") {
+      settingsCache = null;
+      refreshCopyShortcut();
+    }
   });
 
   // --- Внедряем inject.js в контекст страницы ---
@@ -668,6 +686,22 @@
       el.className = "xvd-toast";
       document.body.appendChild(el);
     }
+
+    // Привязываем к картинке, а не к окну: во вьювере картинка редко занимает
+    // всю ширину, и подпись по центру экрана висела бы сбоку от неё.
+    // Координаты getBoundingClientRect отсчитываются от окна — как раз то,
+    // что нужно для position: fixed.
+    const anchor = visiblePhotoImg();
+    if (anchor) {
+      const r = anchor.getBoundingClientRect();
+      el.style.left = `${r.left + r.width / 2}px`;
+      // Не даём уехать за верхний край, если картинка выше экрана.
+      el.style.top = `${Math.max(16, r.top + 16)}px`;
+    } else {
+      el.style.left = "50%";
+      el.style.top = "16px";
+    }
+
     el.textContent = text;
     el.classList.toggle("xvd-toast-error", !ok);
     el.classList.add("xvd-toast-show");
@@ -685,6 +719,7 @@
       // e.code, а не e.key: на не-латинской раскладке key придёт кириллицей.
       if (e.code !== "KeyC") return;
       if (!(e.ctrlKey || e.metaKey) || e.altKey || e.shiftKey) return;
+      if (!copyShortcutEnabled) return;
 
       // Пользователь печатает — не вмешиваемся.
       const active = document.activeElement;
@@ -720,10 +755,10 @@
           // Не всякий браузер принимает промис — тогда дожидаемся блоба.
           await navigator.clipboard.write([new ClipboardItem({ "image/png": await png })]);
         }
-        toast("Image copied", true);
+        toast("📋 Image copied", true);
       } catch (err) {
         console.warn("[XVD] copy failed:", err);
-        toast("Copy failed", false);
+        toast("⚠️ Copy failed", false);
       } finally {
         copyBusy = false;
       }

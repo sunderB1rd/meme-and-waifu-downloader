@@ -84,7 +84,7 @@ node build.mjs
 | `offscreen.html` / `offscreen.js` | Только для Chrome. Создаёт blob URL для готового GIF — в service worker это невозможно. В Firefox файлы лежат без дела. |
 | `manifest.chrome.json` | Chrome. Фоновый скрипт как `service_worker`, разрешение `offscreen`, без gecko-полей. |
 
-Настройки лежат в `storage.local` под ключами `videoSubfolder`, `videoAlwaysAsk`, `photoSubfolder`, `photoAlwaysAsk`, `photoByAuthor`, `gifConvert`. Они переживают обновление и переустановку расширения — если что-то ведёт себя странно, стоит заглянуть туда первым делом.
+Настройки лежат в `storage.local` под ключами `videoSubfolder`, `videoAlwaysAsk`, `photoSubfolder`, `photoAlwaysAsk`, `photoByAuthor`, `gifConvert`, `copyShortcut`. Они переживают обновление и переустановку расширения — если что-то ведёт себя странно, стоит заглянуть туда первым делом.
 
 ---
 
