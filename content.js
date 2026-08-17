@@ -245,9 +245,10 @@
 
     const blob = new Blob([base64ToBytes(res.base64)], { type: "video/mp4" });
     const objectUrl = URL.createObjectURL(blob);
+    let video = null;
 
     try {
-      const video = document.createElement("video");
+      video = document.createElement("video");
       video.muted = true;
       video.playsInline = true;
       video.preload = "auto";
@@ -293,6 +294,15 @@
         delayCs: Math.round(100 / GIF_FPS),
       });
     } finally {
+      // Отпускаем декодер сразу, не дожидаясь сборщика мусора: <video> держит
+      // не только память, но и слот аппаратного декодирования, а их у системы
+      // считанное число. При нескольких гифках подряд они копились бы.
+      // removeAttribute, а не src = "": пустая строка разрешается в адрес
+      // страницы, и браузер пытался бы грузить её как видео.
+      if (video) {
+        video.removeAttribute("src");
+        video.load();
+      }
       URL.revokeObjectURL(objectUrl);
     }
   }
