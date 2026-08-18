@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Waifu and Meme Downloader",
-  "version": "1.11.1",
+  "version": "1.11.2",
   "description": "Download videos and images straight from your X (Twitter) feed in one click.",
   "permissions": [
     "downloads",

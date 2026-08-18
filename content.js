@@ -678,6 +678,28 @@
     return bytesToPngBlob(base64ToBytes(res.base64), photo.ext || "jpg");
   }
 
+  // Серия копирований подряд: чем быстрее гребёшь картинки, тем дальше
+  // уезжает подпись. Счётчик живёт в памяти вкладки и сбрасывается после
+  // паузы — реагировать он должен на «тащу пачкой», а не на «скопировал
+  // десяток за день». Ступени точные: между ними подпись обычная, иначе
+  // шутка приедается на второй раз.
+  const COPY_STREAK_RESET_MS = 30000;
+  const COPY_STREAK_MESSAGES = {
+    3: "📋 Image copied ×3",
+    5: "🔥 On a roll",
+    10: "🚀 Easy there",
+    15: "😭 Stop it",
+  };
+  let copyStreak = 0;
+  let lastCopyAt = 0;
+
+  function copiedMessage() {
+    const now = Date.now();
+    copyStreak = now - lastCopyAt > COPY_STREAK_RESET_MS ? 1 : copyStreak + 1;
+    lastCopyAt = now;
+    return COPY_STREAK_MESSAGES[copyStreak] || "📋 Image copied";
+  }
+
   let toastTimer = null;
   function toast(text, ok) {
     let el = document.querySelector(".xvd-toast");
@@ -755,7 +777,7 @@
           // Не всякий браузер принимает промис — тогда дожидаемся блоба.
           await navigator.clipboard.write([new ClipboardItem({ "image/png": await png })]);
         }
-        toast("📋 Image copied", true);
+        toast(copiedMessage(), true);
       } catch (err) {
         console.warn("[XVD] copy failed:", err);
         toast("⚠️ Copy failed", false);

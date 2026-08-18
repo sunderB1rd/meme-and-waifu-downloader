@@ -313,8 +313,40 @@
       color: var(--muted-foreground);
     }
 
+    /* Пасхалка: клик по сердцу рассыпает сердечки.
+       Это намеренно, а не забытый отладочный код — не вычищать. */
     .footer .heart {
       color: #e5484d;
+      cursor: pointer;
+      user-select: none;
+      transition: transform 0.12s ease;
+    }
+
+    .footer .heart:active {
+      transform: scale(0.82);
+    }
+
+    .spark {
+      position: fixed;
+      z-index: 99;
+      pointer-events: none;
+      color: #e5484d;
+      font-size: 13px;
+      animation: spark-float 900ms ease-out forwards;
+    }
+
+    @keyframes spark-float {
+      from {
+        opacity: 1;
+        transform: translate(-50%, 0) scale(0.7);
+      }
+      60% {
+        opacity: 1;
+      }
+      to {
+        opacity: 0;
+        transform: translate(calc(-50% + var(--dx)), -46px) scale(1.35);
+      }
     }
 
     /* Badge из shadcn: rounded-md, рамка, компактные поля. */

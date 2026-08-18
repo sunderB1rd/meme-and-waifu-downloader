@@ -113,6 +113,26 @@
     });
   }
 
+  // Пасхалка: клик по сердцу в футере. Позиционируем от самого сердца, а не
+  // от центра окна, чтобы сердечки вылетали именно из него.
+  const heart = document.querySelector(".footer .heart");
+  if (heart) {
+    heart.addEventListener("click", () => {
+      const rect = heart.getBoundingClientRect();
+      for (let i = 0; i < 6; i++) {
+        const spark = document.createElement("span");
+        spark.className = "spark";
+        spark.textContent = "♥";
+        spark.style.left = `${rect.left + rect.width / 2}px`;
+        spark.style.top = `${rect.top}px`;
+        spark.style.setProperty("--dx", `${(Math.random() - 0.5) * 64}px`);
+        spark.style.animationDelay = `${i * 45}ms`;
+        document.body.appendChild(spark);
+        setTimeout(() => spark.remove(), 1200 + i * 45);
+      }
+    });
+  }
+
   const versionEl = document.getElementById("version");
   if (versionEl) {
     versionEl.textContent = `v${browser.runtime.getManifest().version}`;
