@@ -8,13 +8,22 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  /* Запасные размеры: content.js всё равно проставит свои, сняв их с соседней
+     кнопки. Отступа здесь нет намеренно — у кнопок твиттера его тоже нет,
+     расстояние между ними задаёт сама панель действий. */
   width: 34px;
   height: 34px;
-  margin-left: 4px;
+  /* У <button> есть собственные отступы от браузера: без обнуления и
+     border-box заданная ширина считалась бы не по внешнему краю. */
+  padding: 0;
+  box-sizing: border-box;
   border: none;
   border-radius: 9999px;
   background: transparent;
-  color: rgb(113, 118, 123);
+  /* Цвет подставляет content.js, сняв его с соседней иконки: у твиттера он
+     разный в светлой теме, «приглушённой» и «выключенном свете». Значение
+     ниже — запасное, на случай если соседнюю иконку найти не удалось. */
+  color: var(--xvd-icon-color, rgb(113, 118, 123));
   cursor: pointer;
   transition: background-color 0.15s ease, color 0.15s ease;
 }

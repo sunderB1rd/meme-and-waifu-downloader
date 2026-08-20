@@ -394,15 +394,39 @@
     return groups[groups.length - 1];
   }
 
-  // Твиттер использует иконки 18.75px в ленте и 22.5px на странице поста.
-  // Computed style устойчивее getBoundingClientRect: его не искажают трансформы.
-  function detectIconSize(actionBar) {
-    const svg = actionBar.querySelector("svg");
-    if (svg) {
-      const w = parseFloat(window.getComputedStyle(svg).width);
-      if (w >= 12 && w <= 40) return w;
+  // Иконки у твиттера 18.75px в ленте и 22.5px на странице поста, а цвет
+  // зависит от выбранной темы. И то и другое снимаем с соседней иконки, а не
+  // задаём числом: computed style устойчивее getBoundingClientRect, его не
+  // искажают трансформы. Свою кнопку из поиска исключаем — она в той же панели.
+  function detectIconStyle(actionBar) {
+    const svg = [...actionBar.querySelectorAll("svg")].find(
+      (el) => !el.closest(".xvd-download-btn")
+    );
+    if (!svg) return { size: 18.75, color: "" };
+
+    const style = window.getComputedStyle(svg);
+    const size = parseFloat(style.width);
+    return {
+      size: size >= 12 && size <= 40 ? size : 18.75,
+      color: style.color || "",
+    };
+  }
+
+  // Круг под иконкой X рисует отдельным слоем с постоянным отступом, а не
+  // пропорциональным. Множитель, подогнанный под ленту, промахивался бы на
+  // странице поста: там иконка крупнее, и круг выходил на 2.5px шире соседних.
+  // Поэтому сначала пробуем измерить кнопку соседа, и только если её бокс равен
+  // самой иконке (круг нарисован поверх) — добавляем отступ сами.
+  const ICON_PADDING = 8;
+  function detectButtonSize(actionBar, iconSize) {
+    const sibling = actionBar.querySelector('button:not(.xvd-download-btn), div[role="button"]');
+    if (sibling) {
+      const height = sibling.getBoundingClientRect().height;
+      if (height > iconSize + 2 && height <= iconSize + ICON_PADDING * 3) {
+        return Math.round(height);
+      }
     }
-    return 18.75;
+    return Math.round(iconSize + ICON_PADDING * 2);
   }
 
   function addTweetButton(article, tweetId, info) {
@@ -425,11 +449,13 @@
     btn.title = describeMedia(info);
     btn.dataset.xvdTweet = tweetId;
 
-    const iconSize = detectIconSize(actionBar);
-    // Та же пропорция, что у Твиттера: иконка 18.75px в кнопке ~34px
-    const btnSize = Math.round(iconSize * 1.8);
+    const { size: iconSize, color } = detectIconStyle(actionBar);
+    const btnSize = detectButtonSize(actionBar, iconSize);
     btn.style.width = `${btnSize}px`;
     btn.style.height = `${btnSize}px`;
+    // Цвет отдаём переменной, а не в style.color: инлайновое свойство
+    // перебило бы подсветку при наведении и зелёный с красным после загрузки.
+    if (color) btn.style.setProperty("--xvd-icon-color", color);
     btn.innerHTML = downloadIconSVG(iconSize);
 
     const total = mediaCount(info);
