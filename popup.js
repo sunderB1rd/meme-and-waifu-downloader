@@ -2,15 +2,15 @@
   // Firefox использует browser.*, Chrome — chrome.*
   const browser = globalThis.browser ?? globalThis.chrome;
 
-  const defaults = {
-    videoSubfolder: "TwitterVideos",
-    videoAlwaysAsk: false,
-    photoSubfolder: "TwitterImages",
-    photoAlwaysAsk: false,
-    photoByAuthor: false,
-    gifConvert: true,
-    copyShortcut: true,
-  };
+  // Дефолты, санитизация и сборка пути — общие с content.js (shared.js).
+  // Пока они были продублированы здесь, превью могло разойтись с тем, куда
+  // на самом деле падает файл.
+  const {
+    DEFAULT_SETTINGS: defaults,
+    sanitizeFolder,
+    buildFilename,
+    buildPathParts,
+  } = globalThis.XVDShared;
 
   const textFields = ["videoSubfolder", "photoSubfolder"];
   const toggleFields = [
@@ -30,29 +30,12 @@
     photo: document.getElementById("photoPreview"),
   };
 
-  // Пример, на котором показываем итоговый путь
-  const SAMPLE_AUTHOR = "author";
-  const SAMPLE_DATE = "2026-08-13";
-  const SAMPLE_ID = "1234567890";
-
-  // Та же санитизация, что при скачивании: Firefox отклонит путь с выходом
-  // за пределы папки загрузок или с недопустимыми символами.
-  function sanitizeSegment(str) {
-    return String(str || "")
-      .replace(/[\\/:*?"<>|\x00-\x1f]/g, "_")
-      .replace(/^[.\s]+|[.\s]+$/g, "")
-      .slice(0, 60);
-  }
-
-  function sanitizeFolder(input) {
-    return String(input || "")
-      .split("/")
-      .map((seg) => seg.trim())
-      .filter((seg) => seg && seg !== "." && seg !== "..")
-      .map(sanitizeSegment)
-      .filter(Boolean)
-      .join("/");
-  }
+  // Пример, на котором показываем итоговый путь. Поля те же, что у настоящего
+  // твита, — превью строится тем же buildFilename, что и реальное имя файла.
+  const SAMPLE = {
+    info: { screenName: "author", createdAt: new Date(2026, 7, 13) },
+    tweetId: "1234567890",
+  };
 
   function escapeHtml(str) {
     return String(str).replace(/[&<>"']/g, (c) => {
@@ -60,28 +43,40 @@
     });
   }
 
-  function renderPath(parts, leaf) {
-    const chain = parts
-      .filter(Boolean)
-      .map((p) => escapeHtml(p))
-      .join('<span class="sep"> / </span>');
+  // Вложенную подпапку («Art/Twitter») разбираем на сегменты, чтобы превью
+  // выглядело так же, как путь на диске, а не одной склеенной строкой.
+  function renderPath(segments) {
+    const flat = segments.flatMap((s) => String(s || "").split("/")).filter(Boolean);
+    const leaf = flat.pop();
+    const chain = flat.map(escapeHtml).join('<span class="sep"> / </span>');
     const sep = chain ? '<span class="sep"> / </span>' : "";
     return `${chain}${sep}<span class="leaf">${escapeHtml(leaf)}</span>`;
   }
 
-  function updatePreviews() {
-    const videoSub = sanitizeFolder(els.videoSubfolder.value);
-    previews.video.innerHTML = renderPath(
-      ["Downloads", videoSub],
-      `${SAMPLE_AUTHOR}_${SAMPLE_DATE}_${SAMPLE_ID}.mp4`
-    );
+  // Превью считаем по тому, что сейчас в полях, а не по сохранённому:
+  // путь должен меняться по мере набора.
+  function currentSettings() {
+    const s = {};
+    for (const key of textFields) s[key] = els[key].value;
+    for (const key of toggleFields) s[key] = els[key].checked;
+    return s;
+  }
 
-    const photoSub = sanitizeFolder(els.photoSubfolder.value);
-    const byAuthor = els.photoByAuthor.checked;
-    previews.photo.innerHTML = renderPath(
-      ["Downloads", photoSub, byAuthor ? SAMPLE_AUTHOR : null],
-      `${SAMPLE_AUTHOR}_${SAMPLE_DATE}_${SAMPLE_ID}.jpg`
-    );
+  function updatePreviews() {
+    const settings = currentSettings();
+
+    for (const [kind, ext, el] of [
+      ["video", "mp4", previews.video],
+      ["photo", "jpg", previews.photo],
+    ]) {
+      const filename = buildFilename(SAMPLE.info, SAMPLE.tweetId, ext, undefined, kind);
+      const { parts } = buildPathParts(settings, {
+        filename,
+        kind,
+        screenName: SAMPLE.info.screenName,
+      });
+      el.innerHTML = renderPath(["Downloads", ...parts]);
+    }
   }
 
   async function load() {

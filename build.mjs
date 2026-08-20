@@ -12,6 +12,7 @@ const dist = join(root, "dist");
 
 // Файлы, общие для обеих сборок
 const SHARED = [
+  "shared.js",
   "content.js",
   "gif-encoder.js",
   "inject.js",

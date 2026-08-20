@@ -41,6 +41,7 @@
         "*://x.com/*"
       ],
       "js": [
+        "shared.js",
         "gif-encoder.js",
         "content.js"
       ],

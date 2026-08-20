@@ -11,15 +11,10 @@
 
   let settingsCache = null;
 
-  const DEFAULT_SETTINGS = {
-    videoSubfolder: "TwitterVideos",
-    videoAlwaysAsk: false,
-    photoSubfolder: "TwitterImages",
-    photoAlwaysAsk: false,
-    photoByAuthor: false,
-    gifConvert: true,
-    copyShortcut: true,
-  };
+  // Санитизация, имена файлов и дефолты настроек живут в shared.js: те же
+  // функции нужны попапу для превью пути, и расходиться им нельзя.
+  const { DEFAULT_SETTINGS, buildFilename, baseMediaKey, buildPathParts } =
+    globalThis.XVDShared;
 
   // Параметры конвертации. X отдаёт «гифки» как mp4, поэтому настоящий .gif
   // приходится собирать самим: покадрово через <video> + canvas.
@@ -72,16 +67,6 @@
   // document_start documentElement уже существует, ждать нечего.
   injectPageScript();
 
-  // --- Ключ картинки: в ленте адрес вида /media/ABC, из API — /media/ABC.jpg ---
-  function baseMediaKey(url) {
-    try {
-      const path = new URL(url, location.origin).pathname;
-      return path.replace(/\.(jpg|jpeg|png|webp|gif)$/i, "");
-    } catch (e) {
-      return url;
-    }
-  }
-
   function indexPhotos(tweetId, info) {
     info.photos.forEach((p, idx) => {
       photoIndex.set(baseMediaKey(p.url), { tweetId, idx });
@@ -128,61 +113,14 @@
     requestScan();
   });
 
-  // --- Имена файлов и пути ---
-  // Для имён файлов и авторов нужен запасной вариант, иначе получится пустое имя.
-  function sanitize(str) {
-    return sanitizeSegment(str) || "unknown";
-  }
-
-  // Для сегмента пути фолбэк не нужен: пустой сегмент просто выбрасывается,
-  // иначе подпапка «...» превратилась бы в папку с именем unknown.
-  function sanitizeSegment(str) {
-    return String(str || "")
-      .replace(/[\\/:*?"<>|\x00-\x1f]/g, "_")
-      .replace(/^[.\s]+|[.\s]+$/g, "")
-      .slice(0, 60);
-  }
-
-  // Подпапка может содержать вложенность («Art/Twitter»), но не должна
-  // позволять выход за пределы папки загрузок — Firefox такой путь отклонит.
-  function sanitizeFolder(input) {
-    return String(input || "")
-      .split("/")
-      .map((seg) => seg.trim())
-      .filter((seg) => seg && seg !== "." && seg !== "..")
-      .map(sanitizeSegment)
-      .filter(Boolean)
-      .join("/");
-  }
-
-  function formatDate(createdAt) {
-    const d = createdAt ? new Date(createdAt) : null;
-    if (!d || isNaN(d.getTime())) return "unknown-date";
-    const pad = (n) => String(n).padStart(2, "0");
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-  }
-
-  // kind: "video" | "gif" | "photo"
-  function buildFilename(info, tweetId, ext, index, kind) {
-    const author = sanitize(info.screenName);
-    const date = formatDate(info.createdAt);
-    const idx = typeof index === "number" ? `_${index + 1}` : "";
-    const gifMark = kind === "gif" ? "_gif" : "";
-    return `${author}_${date}_${sanitize(tweetId)}${gifMark}${idx}.${ext}`;
-  }
-
+  // --- Путь сохранения ---
   async function buildPath(filename, kind, screenName) {
-    const s = await getSettings();
-    const isPhoto = kind === "photo";
-    const subfolder = sanitizeFolder(isPhoto ? s.photoSubfolder : s.videoSubfolder);
-    const parts = [];
-    if (subfolder) parts.push(subfolder);
-    if (isPhoto && s.photoByAuthor) parts.push(sanitize(screenName));
-    parts.push(filename);
-    return {
-      path: parts.join("/"),
-      saveAs: isPhoto ? !!s.photoAlwaysAsk : !!s.videoAlwaysAsk,
-    };
+    const { parts, saveAs } = buildPathParts(await getSettings(), {
+      filename,
+      kind,
+      screenName,
+    });
+    return { path: parts.join("/"), saveAs };
   }
 
   async function downloadOne(url, filename, kind, screenName) {
@@ -534,12 +472,14 @@
       // React при перерисовке переписывает className своим значением и стирает
       // наш класс, из-за чего кнопка переставала показываться по наведению.
       // Кнопку он не трогает — она не в его дереве. Поэтому класс возвращаем.
-      if (container && container.querySelector(".xvd-photo-btn")) {
-        container.classList.add("xvd-photo-container");
-      }
+      const hasButton = !!(container && container.querySelector(".xvd-photo-btn"));
+      if (hasButton) container.classList.add("xvd-photo-container");
 
-      // src мог смениться на другую картинку в переиспользованном узле
-      if (img.dataset.xvdKey === key) return;
+      // Пропускаем, только если кнопка на месте и относится к этой же картинке.
+      // Одного dataset мало: React может заменить контейнер целиком, переиспользовав
+      // сам <img>. Кнопка уезжает со старым контейнером, ключ на картинке остаётся —
+      // и кнопка не вернулась бы до следующей смены src.
+      if (hasButton && img.dataset.xvdKey === key) return;
 
       const match = lookupPhoto(key);
       if (!match) return; // не фото твита (например, аватарка в карточке)

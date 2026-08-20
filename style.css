@@ -4,6 +4,7 @@
 }
 
 .xvd-download-btn {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -26,10 +27,6 @@
 .xvd-download-btn.xvd-loading {
   opacity: 0.5;
   pointer-events: none;
-}
-
-.xvd-download-btn {
-  position: relative;
 }
 
 .xvd-badge {

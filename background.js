@@ -8,7 +8,9 @@
   function isAllowedMediaUrl(url) {
     try {
       const u = new URL(url);
-      if (u.protocol !== "https:" && u.protocol !== "http:") return false;
+      // Только https: по http медиа X не отдаёт, а разрешать схему без
+      // шифрования значило бы открыть дорогу подмене ответа по пути.
+      if (u.protocol !== "https:") return false;
       const host = u.hostname.toLowerCase();
       return host === "twimg.com" || host.endsWith(".twimg.com");
     } catch (e) {
