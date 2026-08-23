@@ -173,21 +173,67 @@
 
       const entry = meta[id];
       // status не valid — картинку удалили или она не загрузилась.
-      // e не Image — анимация или видео, первая версия их не берёт.
-      if (!entry || entry.status !== "valid" || entry.e !== "Image") continue;
+      if (!entry || entry.status !== "valid") continue;
+      // Кроме обычных картинок в галерее попадаются анимированные —
+      // это настоящие gif, и берём мы их так же, по имени файла.
+      if (entry.e !== "Image" && entry.e !== "AnimatedImage") continue;
 
       const ext = extFromMime(entry.m);
       out.push({
-        // Оригинал лежит на i.redd.it. Ссылка из s.u ведёт на preview.redd.it
-        // с параметром auto=webp — по ней вместо jpg может приехать webp под
-        // именем .jpg. Держим её только как запасную.
+        // Оригинал лежит на i.redd.it. Запасной адрес у обычной картинки
+        // в s.u, у анимированной — в s.gif. Первый ведёт на preview.redd.it
+        // с параметром auto=webp, по нему вместо jpg может приехать webp под
+        // именем .jpg, поэтому он именно запасной.
         url: `https://i.redd.it/${id}.${ext}`,
-        fallbackUrl: decodeEntities(entry.s?.u),
+        fallbackUrl: decodeEntities(entry.s?.gif || entry.s?.u),
         ext,
       });
     }
 
     return out;
+  }
+
+  // Видео реддита. У v.redd.it картинка и звук лежат разными файлами (DASH,
+  // новые ролики зовут их CMAF_*), и склеить их в браузере нечем. Но для
+  // своего плеера реддит держит ещё и готовые mp4 со звуком на
+  // packaged-media.redd.it, а список ссылок кладёт прямо в атрибут
+  // packaged-media-json у <shreddit-player>. Пока он есть — мультиплексор
+  // не нужен вовсе.
+  //
+  // Ссылки подписаны и живут ограниченное время (параметры e и s), поэтому
+  // читать их надо в момент скачивания, а не запасать впрок.
+  function parsePackagedMedia(json) {
+    let payload = json;
+    if (typeof json === "string") {
+      try {
+        payload = JSON.parse(json);
+      } catch (e) {
+        return null;
+      }
+    }
+
+    const list = payload?.playbackMp4s?.permutations;
+    if (!Array.isArray(list)) return null;
+
+    const options = [];
+    for (const item of list) {
+      const url = item?.source?.url;
+      if (!url) continue;
+      options.push({
+        url: decodeEntities(url),
+        height: Number(item?.source?.dimensions?.height) || 0,
+        codec: String(item?.source?.videoCodec || "").toUpperCase(),
+      });
+    }
+    if (!options.length) return null;
+
+    // Сначала разрешение, потом кодек. H264 предпочтительнее VP9 при равной
+    // высоте: в mp4 его понимают все, включая проводник Windows и видео-
+    // редакторы, а наборы у реддита одинаковые по разрешениям.
+    const rank = (o) => (o.codec === "H264" ? 0 : 1);
+    options.sort((x, y) => y.height - x.height || rank(x) - rank(y));
+
+    return options[0];
   }
 
   // --- Иконка кнопки ---
@@ -218,6 +264,7 @@
     extFromMime,
     extFromUrl,
     parseGalleryJson,
+    parsePackagedMedia,
     downloadIconSVG,
   };
 })();

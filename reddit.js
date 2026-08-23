@@ -17,6 +17,8 @@
     buildFilename,
     buildPathParts,
     extFromUrl,
+    decodeEntities,
+    parsePackagedMedia,
     parseGalleryJson,
     downloadIconSVG,
   } = globalThis.XVDShared;
@@ -34,7 +36,10 @@
   // --- Пост из атрибутов ---
   function readPost(el) {
     const type = el.getAttribute("post-type");
-    if (type !== "image" && type !== "gallery") return null;
+    // gif — это отдельный тип поста, но по устройству он тот же image:
+    // content-href ведёт прямо на настоящий .gif, конвертировать нечего.
+    const known = ["image", "gif", "gallery", "video"];
+    if (!known.includes(type)) return null;
 
     const id = (el.getAttribute("id") || "").replace(/^t3_/, "");
     if (!id) return null;
@@ -50,9 +55,59 @@
     };
   }
 
-  // --- Адреса картинок ---
+  // --- Адреса медиа ---
+  async function fetchPostJson(post) {
+    // У галереи и видео content-href ведёт на страницу, а не на файл,
+    // поэтому за адресами идём в API. raw_json=1 просит реддит не
+    // экранировать ссылки в ответе.
+    const base = post.permalink.replace(/[/]+$/, "");
+    if (!base) return null;
+
+    const res = await fetch(`${base}.json?raw_json=1`, { credentials: "same-origin" });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+  }
+
+  function postData(payload) {
+    return payload?.[0]?.data?.children?.[0]?.data ?? null;
+  }
+
+  // Плеер ищем по id поста, а не по сохранённой ссылке на узел: карточки
+  // переиспользуются при скролле, и запасённая ссылка указывала бы на чужой пост.
+  function findPlayer(post) {
+    return document.querySelector(
+      `shreddit-player[post-id="t3_${post.id}"], shreddit-player-2[post-id="t3_${post.id}"]`
+    );
+  }
+
+  async function collectVideo(post) {
+    // Готовый mp4 со звуком из атрибута плеера — лучший вариант: один файл,
+    // склеивать нечего. Ссылки подписаны и живут ограниченное время, поэтому
+    // читаем их в момент скачивания.
+    const player = findPlayer(post);
+    const packaged = player && parsePackagedMedia(player.getAttribute("packaged-media-json"));
+    if (packaged) return [{ url: packaged.url, ext: "mp4" }];
+
+    // Иначе остаётся то, что отдаёт API, а там дорожка без звука: у v.redd.it
+    // картинка и звук лежат разными файлами. Для немого ролика (is_gif или
+    // has_audio: false) это и есть весь файл, для остальных звук потребует
+    // мультиплексора — его пока нет.
+    const data = postData(await fetchPostJson(post));
+    const video = data?.secure_media?.reddit_video || data?.media?.reddit_video;
+    if (!video?.fallback_url) return [];
+
+    const silent = video.is_gif === true || video.has_audio === false;
+    if (!silent) {
+      console.warn(
+        "[XVD] reddit: готового mp4 со звуком нет, скачивается дорожка без звука:",
+        post.id
+      );
+    }
+    return [{ url: decodeEntities(video.fallback_url), ext: "mp4" }];
+  }
+
   async function collectMedia(post) {
-    if (post.type === "image") {
+    if (post.type === "image" || post.type === "gif") {
       // content-href — прямой оригинал на i.redd.it. Из <img src> адрес брать
       // нельзя: у постов со спойлером там лежит замыленное превью, и мы
       // скачали бы мазню.
@@ -60,14 +115,9 @@
       return [{ url: post.contentHref, ext: extFromUrl(post.contentHref) || "jpg" }];
     }
 
-    // У галереи content-href ведёт на страницу /gallery/<id>, адресов картинок там нет.
-    const base = post.permalink.replace(/[/]+$/, "");
-    if (!base) return [];
+    if (post.type === "video") return collectVideo(post);
 
-    // raw_json=1 просит реддит не экранировать адреса в ответе.
-    const res = await fetch(`${base}.json?raw_json=1`, { credentials: "same-origin" });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return parseGalleryJson(await res.json());
+    return parseGalleryJson(await fetchPostJson(post));
   }
 
   // Текущий кадр карусели. Реддит держит все кадры в разметке разом и прячет
@@ -143,7 +193,7 @@
           post.id,
           item.ext || "jpg",
           total > 1 ? index : undefined,
-          "photo"
+          post.type === "video" ? "video" : "photo"
         );
 
         let done = await downloadOne(item.url, filename, settings, post);
@@ -196,7 +246,15 @@
 
   // Кнопка поверх картинки: качает то, что сейчас видно.
   function addImageButton(container, post) {
-    const btn = makeButton("xvd-photo-btn", "Download image", post);
+    const btn = makeButton(
+      "xvd-photo-btn",
+      post.type === "video"
+        ? "Download video"
+        : post.type === "gif"
+          ? "Download GIF"
+          : "Download image",
+      post
+    );
     btn.innerHTML = downloadIconSVG(18.75);
     onClick(btn, () => {
       // Кадр карусели спрашиваем в момент клика, а не при создании кнопки:

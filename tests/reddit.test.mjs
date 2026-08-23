@@ -32,13 +32,14 @@ test("галерея разбирается в порядке gallery_data.items
       "https://i.redd.it/uys6xcc7o5kh1.jpg",
       "https://i.redd.it/irs5qdc7o5kh1.jpg",
       "https://i.redd.it/mvnx9ec7o5kh1.png",
+      "https://i.redd.it/animatedcccccc.gif",
     ]
   );
 });
 
 test("расширение берётся из mime, а не из ключа", () => {
   const items = parseGalleryJson(gallery);
-  deepEqual(items.map((i) => i.ext), ["jpg", "jpg", "png"]);
+  deepEqual(items.map((i) => i.ext), ["jpg", "jpg", "png", "gif"]);
 });
 
 test("запасной адрес приходит раскодированным", () => {
@@ -48,9 +49,17 @@ test("запасной адрес приходит раскодированны�
   assert.ok(first.fallbackUrl.includes("width=704&format=pjpg"));
 });
 
-test("удалённые, битые и анимированные записи пропускаются", () => {
-  // В фикстуре шесть записей в gallery_data, годных из них три
-  assert.equal(parseGalleryJson(gallery).length, 3);
+test("удалённые и битые записи пропускаются, анимированные — нет", () => {
+  // В фикстуре шесть записей в gallery_data: одна удалена, одна не
+  // загрузилась, остаётся четыре — три картинки и гифка. Анимированные
+  // кадры попадаются в обычных галереях наравне с картинками.
+  assert.equal(parseGalleryJson(gallery).length, 4);
+});
+
+test("у анимированного кадра запасной адрес берётся из s.gif", () => {
+  // У обычной картинки он лежит в s.u, у анимированной такого поля нет
+  const animated = parseGalleryJson(gallery).find((i) => i.ext === "gif");
+  assert.equal(animated.fallbackUrl, "https://i.redd.it/animatedcccccc.gif");
 });
 
 test("media_metadata из комментариев не попадает в галерею", () => {
@@ -144,4 +153,79 @@ test("настройки реддита не влияют на X и наобор
   });
   deepEqual(reddit.parts, ["RedditImages", "typemoon", "a.jpg"]);
   assert.equal(reddit.saveAs, true);
+});
+
+// --- Видео ---
+// Реддит кладёт список готовых mp4 в атрибут плеера. Строка ниже — обрезанный
+// настоящий packaged-media-json: два кодека, разные разрешения, экранированные
+// амперсанды, как это и приезжает в HTML-атрибуте.
+
+const packagedJson = JSON.stringify({
+  playbackMp4s: {
+    duration: 26,
+    permutations: [
+      {
+        source: {
+          url: "https://packaged-media.redd.it/abc/pb/m2-vp9-res_220p.mp4?v=1&amp;e=1787472000&amp;s=aa",
+          dimensions: { width: 392, height: 220 },
+          videoCodec: "VP9",
+        },
+      },
+      {
+        source: {
+          url: "https://packaged-media.redd.it/abc/pb/m2-vp9-res_720p.mp4?v=1&amp;e=1787472000&amp;s=bb",
+          dimensions: { width: 1280, height: 720 },
+          videoCodec: "VP9",
+        },
+      },
+      {
+        source: {
+          url: "https://packaged-media.redd.it/abc/pb/m2-res_360p.mp4?v=1&amp;e=1787472000&amp;s=cc",
+          dimensions: { width: 640, height: 360 },
+          videoCodec: "H264",
+        },
+      },
+      {
+        source: {
+          url: "https://packaged-media.redd.it/abc/pb/m2-res_720p.mp4?v=1&amp;e=1787472000&amp;s=dd",
+          dimensions: { width: 1280, height: 720 },
+          videoCodec: "H264",
+        },
+      },
+    ],
+  },
+});
+
+const { parsePackagedMedia } = loadScript("shared.js").XVDShared;
+
+test("из готовых mp4 берётся самое большое разрешение", () => {
+  assert.equal(parsePackagedMedia(packagedJson).height, 720);
+});
+
+test("при равном разрешении H264 выигрывает у VP9", () => {
+  // В mp4 H264 понимают все, включая проводник и видеоредакторы,
+  // а наборы у реддита одинаковые по разрешениям
+  const best = parsePackagedMedia(packagedJson);
+  assert.equal(best.codec, "H264");
+  assert.ok(best.url.endsWith("s=dd"), best.url);
+});
+
+test("адрес готового mp4 приходит раскодированным", () => {
+  // Атрибут HTML, значит амперсанды экранированы; с &amp; подпись не сойдётся
+  const best = parsePackagedMedia(packagedJson);
+  assert.ok(!best.url.includes("&amp;"), best.url);
+  assert.ok(best.url.includes("v=1&e=1787472000&s=dd"));
+});
+
+test("разбор принимает и строку, и уже разобранный объект", () => {
+  const asObject = JSON.parse(packagedJson);
+  assert.equal(parsePackagedMedia(asObject).url, parsePackagedMedia(packagedJson).url);
+});
+
+test("без готовых mp4 разбор честно отвечает «нечего брать»", () => {
+  for (const payload of [null, undefined, "", "не json", "{}", {}, { playbackMp4s: {} }]) {
+    assert.equal(parsePackagedMedia(payload), null, String(payload));
+  }
+  // Список есть, но в нём нет ни одной ссылки
+  assert.equal(parsePackagedMedia({ playbackMp4s: { permutations: [{}, { source: {} }] } }), null);
 });
