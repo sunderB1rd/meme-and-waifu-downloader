@@ -1,0 +1,93 @@
+[
+  {
+    "kind": "Listing",
+    "data": {
+      "children": [
+        {
+          "kind": "t3",
+          "data": {
+            "subreddit": "typemoon",
+            "id": "1vrt47j",
+            "author": "MiyurinMiyu",
+            "title": "Rin Tohsaka cosplay by me :p:p",
+            "is_gallery": true,
+            "created_utc": 1787068516.0,
+            "permalink": "/r/typemoon/comments/1vrt47j/rin_tohsaka_cosplay_by_me_pp/",
+            "url": "https://www.reddit.com/gallery/1vrt47j",
+            "gallery_data": {
+              "items": [
+                { "is_deleted": false, "media_id": "uys6xcc7o5kh1", "id": 1021269561 },
+                { "is_deleted": false, "media_id": "irs5qdc7o5kh1", "id": 1021269562 },
+                { "is_deleted": false, "media_id": "mvnx9ec7o5kh1", "id": 1021269563 },
+                { "is_deleted": true, "media_id": "deletedaaaaaaa", "id": 1021269564 },
+                { "is_deleted": false, "media_id": "brokenbbbbbbbb", "id": 1021269565 },
+                { "is_deleted": false, "media_id": "animatedcccccc", "id": 1021269566 }
+              ]
+            },
+            "media_metadata": {
+              "irs5qdc7o5kh1": {
+                "status": "valid",
+                "e": "Image",
+                "m": "image/jpg",
+                "s": {
+                  "y": 1654,
+                  "x": 1201,
+                  "u": "https://preview.redd.it/irs5qdc7o5kh1.jpg?width=1201&amp;format=pjpg&amp;auto=webp&amp;s=86517e1d"
+                },
+                "id": "irs5qdc7o5kh1"
+              },
+              "mvnx9ec7o5kh1": {
+                "status": "valid",
+                "e": "Image",
+                "m": "image/png",
+                "s": {
+                  "y": 1737,
+                  "x": 1179,
+                  "u": "https://preview.redd.it/mvnx9ec7o5kh1.png?width=1179&amp;format=png&amp;auto=webp&amp;s=d1c66741"
+                },
+                "id": "mvnx9ec7o5kh1"
+              },
+              "uys6xcc7o5kh1": {
+                "status": "valid",
+                "e": "Image",
+                "m": "image/jpg",
+                "s": {
+                  "y": 938,
+                  "x": 704,
+                  "u": "https://preview.redd.it/uys6xcc7o5kh1.jpg?width=704&amp;format=pjpg&amp;auto=webp&amp;s=ba4b0127"
+                },
+                "id": "uys6xcc7o5kh1"
+              },
+              "brokenbbbbbbbb": { "status": "failed" },
+              "animatedcccccc": {
+                "status": "valid",
+                "e": "AnimatedImage",
+                "m": "image/gif",
+                "s": { "gif": "https://i.redd.it/animatedcccccc.gif" },
+                "id": "animatedcccccc"
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "kind": "Listing",
+    "data": {
+      "children": [
+        {
+          "kind": "t1",
+          "data": {
+            "id": "p4w5ian",
+            "author": "Visible_Cow8010",
+            "body": "![gif](giphy|yZJ2SPAnKqlmXOYmyt)",
+            "media_metadata": {
+              "giphy|yZJ2SPAnKqlmXOYmyt": { "status": "invalid" }
+            }
+          }
+        }
+      ]
+    }
+  }
+]

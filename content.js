@@ -13,7 +13,7 @@
 
   // Санитизация, имена файлов и дефолты настроек живут в shared.js: те же
   // функции нужны попапу для превью пути, и расходиться им нельзя.
-  const { DEFAULT_SETTINGS, buildFilename, baseMediaKey, buildPathParts } =
+  const { DEFAULT_SETTINGS, buildFilename, baseMediaKey, buildPathParts, downloadIconSVG } =
     globalThis.XVDShared;
 
   // Параметры конвертации. X отдаёт «гифки» как mp4, поэтому настоящий .gif
@@ -305,18 +305,6 @@
     btn.classList.remove("xvd-loading");
     btn.classList.add(ok ? "xvd-success" : "xvd-error");
     setTimeout(() => btn.classList.remove("xvd-success", "xvd-error"), 2500);
-  }
-
-  function downloadIconSVG(size) {
-    const s = Number(size) > 0 ? Number(size) : 18.75;
-    // Стрелка — точное вертикальное отражение стрелки из штатной кнопки
-    // «поделиться», лоток взят оттуда без изменений. Так иконка совпадает
-    // с соседними по геометрии и толщине штриха.
-    return `
-      <svg viewBox="0 0 24 24" width="${s}" height="${s}" fill="currentColor" aria-hidden="true">
-        <g><path d="M12 16l5.7-5.7-1.41-1.42L13 12.18V2.59h-2v9.59L7.7 8.88 6.29 10.3 12 16zM21 15l-.02 3.51c0 1.38-1.12 2.49-2.5 2.49H5.5C4.11 21 3 19.88 3 18.5V15h2v3.5c0 .28.22.5.5.5h12.98c.28 0 .5-.22.5-.5L19 15h2z"></path></g>
-      </svg>
-    `;
   }
 
   // --- Кнопка в панели действий: скачивает всё медиа поста ---

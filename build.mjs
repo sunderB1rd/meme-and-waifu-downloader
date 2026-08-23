@@ -14,6 +14,7 @@ const dist = join(root, "dist");
 const SHARED = [
   "shared.js",
   "content.js",
+  "reddit.js",
   "gif-encoder.js",
   "inject.js",
   "background.js",

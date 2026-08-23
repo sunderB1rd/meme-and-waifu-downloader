@@ -142,3 +142,87 @@ div[data-testid="tweetPhoto"]:hover .xvd-photo-btn,
 .xvd-toast.xvd-toast-error {
   background: rgba(244, 33, 46, 0.95);
 }
+
+/* --- Реддит --- */
+
+/* Кнопка «скачать всю галерею» в панели действий поста. Сама панель лежит
+   в теневом дереве shreddit-post, куда стили документа не достают, но
+   кнопка вставляется в светлый DOM и попадает в панель через слот —
+   поэтому эти правила на неё действуют.
+
+   Высоту берём из переменной самого реддита, чтобы совпасть с соседними
+   кнопками при любой их вёрстке. */
+.xvd-reddit-all-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  /* Всё, что можно, снято с соседней родной кнопки в reddit.js. Значения
+     ниже — запасные, на случай если панель ещё не отрисована. */
+  height: var(--xvd-h, var(--size-button-sm-h, 32px));
+  padding: 0 var(--xvd-px, 12px);
+  /* Панель действий — флекс-контейнер, и по умолчанию он сжимает наш
+     элемент, обрезая счётчик. Родные кнопки от этого закрыты своим
+     min-w-fit, нам нужен свой эквивалент. */
+  flex: 0 0 auto;
+  min-width: max-content;
+  white-space: nowrap;
+  /* В ленте поверх карточки лежит ссылка на пост — поднимаемся над ней. */
+  position: relative;
+  z-index: 10;
+  border: none;
+  border-radius: var(--xvd-radius, 9999px);
+  background: var(--xvd-bg, transparent);
+  color: var(--xvd-fg, currentColor);
+  font: inherit;
+  font-size: var(--xvd-fs, 12px);
+  font-weight: var(--xvd-fw, 700);
+  line-height: 1;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+/* Наведение устроено так же, как нажатие: сплошная заливка поверх базового
+   фона, а не замена его целиком. Замена как раз и выглядела чужеродно —
+   терялась полупрозрачность, ради которой всё и затевалось.
+
+   Цепочка запасных значений выстроена так, чтобы деградировать мягко: нет
+   переменной слоя — берём нейтральный серый, нет фона состояния — ложимся
+   на снятый с соседа фон покоя. */
+.xvd-reddit-all-btn:hover {
+  background:
+    linear-gradient(
+      var(--xvd-hover, rgba(128, 128, 128, 0.15)),
+      var(--xvd-hover, rgba(128, 128, 128, 0.15))
+    ),
+    var(--xvd-bg-hover, var(--xvd-bg, transparent));
+}
+
+/* Нажатие: реддит кладёт сплошную заливку поверх фона активного состояния —
+   linear-gradient из одного цвета и есть этот слой. Повторяем конструкцию
+   один в один, чтобы не гадать, подмешивается цвет или заменяет собой фон:
+   подмешивается. */
+.xvd-reddit-all-btn:active {
+  background:
+    linear-gradient(var(--xvd-pressed, #ffffff26), var(--xvd-pressed, #ffffff26)),
+    var(--xvd-bg-active, var(--xvd-bg, transparent));
+}
+
+.xvd-reddit-all-btn.xvd-loading {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.xvd-reddit-all-btn.xvd-success {
+  color: rgb(0, 186, 124);
+}
+
+.xvd-reddit-all-btn.xvd-error {
+  color: rgb(244, 33, 46);
+}
+
+/* Запасное место для той же кнопки, если ни один слот панели не подошёл:
+   вторым кружком поверх картинки, левее кнопки «скачать эту». */
+.xvd-photo-btn-all {
+  right: 48px;
+}

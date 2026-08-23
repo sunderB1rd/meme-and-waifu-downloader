@@ -21,11 +21,13 @@ import { execFileSync } from "node:child_process";
 const root = dirname(fileURLToPath(import.meta.url));
 let failures = 0;
 
+const readJson = (path) => JSON.parse(readFileSync(path, "utf8"));
 const ok = (msg) => console.log(`  ok    ${msg}`);
 const fail = (msg) => {
   failures++;
   console.log(`  ПЛОХО ${msg}`);
 };
+const warn = (msg) => console.log(`  ~     ${msg}`);
 const section = (title) => console.log(`\n${title}`);
 
 // --- Синтаксис ---
@@ -63,11 +65,6 @@ const chrome = json["manifest.chrome.json"];
 const updates = json["updates.json"];
 const version = firefox?.version;
 
-if (firefox && chrome) {
-  if (chrome.version === version) ok(`версия ${version} одинакова в обоих манифестах`);
-  else fail(`версии разъехались: firefox ${version}, chrome ${chrome.version}`);
-}
-
 // Идентичность расширения для Firefox. Другой id — другое расширение:
 // слетают настройки пользователя и рвётся связь с подписанными сборками.
 const GECKO_ID = "xvd-extension@local.personal";
@@ -78,16 +75,40 @@ if (firefox) {
 }
 
 // Автообновления встают молча, если номер или имя файла не совпали.
+// Порядковое сравнение, а не строковое: 1.9.0 старше 1.12.0.
+function isBehind(a, b) {
+  const pa = String(a).split(".").map(Number);
+  const pb = String(b).split(".").map(Number);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const x = pa[i] || 0;
+    const y = pb[i] || 0;
+    if (x !== y) return x < y;
+  }
+  return false;
+}
+
 if (updates && version) {
   const entry = updates.addons?.[GECKO_ID]?.updates?.[0];
   if (!entry) {
     fail(`updates.json: нет записи для ${GECKO_ID}`);
-  } else if (entry.version !== version) {
-    fail(`updates.json: версия ${entry.version}, а в манифесте ${version}`);
-  } else if (!entry.update_link.includes(`/v${version}/`) || !entry.update_link.includes(version + "-firefox.xpi")) {
-    fail(`updates.json: ссылка не ведёт на файл версии ${version}`);
+  } else if (entry.version === version) {
+    if (
+      !entry.update_link.includes(`/v${version}/`) ||
+      !entry.update_link.includes(version + "-firefox.xpi")
+    ) {
+      fail(`updates.json: ссылка не ведёт на файл версии ${version}`);
+    } else {
+      ok("updates.json согласован с манифестом");
+    }
+  } else if (isBehind(entry.version, version)) {
+    // Обычное состояние между подъёмом версии и выпуском: updates.json
+    // генерирует release.mjs, руками его не правят.
+    warn(
+      `updates.json отстаёт (${entry.version} против ${version}) — ` +
+        "release.mjs подтянет его при выпуске"
+    );
   } else {
-    ok("updates.json согласован с манифестом");
+    fail(`updates.json: версия ${entry.version} новее манифеста (${version})`);
   }
 }
 
@@ -111,6 +132,18 @@ try {
   ok("build.mjs отработал");
 } catch (e) {
   fail(`build.mjs упал: ${String(e.stderr || e.message).trim()}`);
+}
+
+// Версию в chrome-манифест подтягивает build.mjs, поэтому сверяем не
+// исходники, а то, что оказалось в собранных папках.
+try {
+  const built = ["firefox", "chrome"].map(
+    (t) => readJson(join(root, "dist", t, "manifest.json")).version
+  );
+  if (built[0] === built[1]) ok(`версия ${built[0]} одинакова в обеих сборках`);
+  else fail(`версии в сборках разъехались: ${built[0]} и ${built[1]}`);
+} catch (e) {
+  fail(`не прочитать версии из dist: ${e.message}`);
 }
 
 // Chrome создаёт offscreen-документ из кода, манифест о нём не знает —

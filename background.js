@@ -2,17 +2,27 @@
   // Firefox использует browser.*, Chrome — chrome.*
   const browser = globalThis.browser ?? globalThis.chrome;
 
-  // Медиа X всегда лежит на twimg.com. Проверяем здесь, а не в content.js:
-  // тот работает на странице твиттера, и прислать ему поддельное сообщение
-  // с чужим адресом может любой скрипт этой страницы.
+  // Домены, с которых разрешено качать. Проверяем здесь, а не в
+  // content-скриптах: те работают на самой странице, и прислать поддельное
+  // сообщение с чужим адресом может любой скрипт этой страницы.
+  //
+  // Сверка идёт по точному совпадению или поддомену, поэтому подставной
+  // evil-twimg.com сюда не пролезет.
+  const ALLOWED_MEDIA_HOSTS = [
+    "twimg.com", // X: pbs.twimg.com, video.twimg.com
+    "redd.it", // реддит: i.redd.it, preview.redd.it
+  ];
+
   function isAllowedMediaUrl(url) {
     try {
       const u = new URL(url);
-      // Только https: по http медиа X не отдаёт, а разрешать схему без
+      // Только https: по http медиа не отдаётся, а разрешать схему без
       // шифрования значило бы открыть дорогу подмене ответа по пути.
       if (u.protocol !== "https:") return false;
       const host = u.hostname.toLowerCase();
-      return host === "twimg.com" || host.endsWith(".twimg.com");
+      return ALLOWED_MEDIA_HOSTS.some(
+        (allowed) => host === allowed || host.endsWith("." + allowed)
+      );
     } catch (e) {
       return false;
     }
@@ -52,7 +62,7 @@
 
   async function handleDownload(msg) {
     if (!isAllowedMediaUrl(msg.url)) {
-      return { success: false, error: "url is not on twimg.com" };
+      return { success: false, error: "url host is not allowed" };
     }
     try {
       const downloadId = await browser.downloads.download({
@@ -80,7 +90,7 @@
   // заголовков CORS. У фонового скрипта есть host_permissions, ему можно.
   async function fetchMedia(url, maxBytes) {
     if (!isAllowedMediaUrl(url)) {
-      return { success: false, error: "url is not on twimg.com" };
+      return { success: false, error: "url host is not allowed" };
     }
     try {
       const res = await fetch(url);

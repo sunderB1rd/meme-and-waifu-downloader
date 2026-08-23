@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Waifu and Meme Downloader",
-  "version": "1.11.2",
+  "version": "1.12.0",
   "description": "Download videos and images straight from your X (Twitter) feed in one click.",
   "permissions": [
     "downloads",
@@ -29,7 +29,8 @@
   "host_permissions": [
     "*://twitter.com/*",
     "*://x.com/*",
-    "*://*.twimg.com/*"
+    "*://*.twimg.com/*",
+    "*://*.reddit.com/*"
   ],
   "background": {
     "service_worker": "background.js"
@@ -49,6 +50,20 @@
         "style.css"
       ],
       "run_at": "document_start",
+      "all_frames": false
+    },
+    {
+      "matches": [
+        "*://*.reddit.com/*"
+      ],
+      "js": [
+        "shared.js",
+        "reddit.js"
+      ],
+      "css": [
+        "style.css"
+      ],
+      "run_at": "document_idle",
       "all_frames": false
     }
   ],
