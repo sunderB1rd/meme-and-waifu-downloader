@@ -317,12 +317,16 @@
        Иерархия держится тремя ступенями серого, а не заливкой.
        Нижнее поле разводит превью и область наведения строки. */
     .preview {
-      margin: 8px 0 6px;
+      margin: 6px 0 4px;
       font-family: var(--font-mono);
       font-size: 11px;
       line-height: 1.45;
       color: #737373;
-      word-break: break-all;
+      /* Строго одна строка: перенос ронял высоту окна в скролл. Длинную
+         вложенность обрезаем многоточием — она и так видна в поле выше. */
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
     .preview .sep {

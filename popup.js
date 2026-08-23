@@ -5,12 +5,8 @@
   // Дефолты, санитизация и сборка пути — общие с content.js (shared.js).
   // Пока они были продублированы здесь, превью могло разойтись с тем, куда
   // на самом деле падает файл.
-  const {
-    DEFAULT_SETTINGS: defaults,
-    sanitizeFolder,
-    buildFilename,
-    buildPathParts,
-  } = globalThis.XVDShared;
+  const { DEFAULT_SETTINGS: defaults, sanitizeFolder, buildPathParts } =
+    globalThis.XVDShared;
 
   const textFields = [
     "videoSubfolder",
@@ -58,13 +54,10 @@
     if (input) input.checked = true;
   }
 
-  // Пример, на котором показываем итоговый путь. Поля те же, что у настоящего
-  // поста, — превью строится тем же buildFilename, что и реальное имя файла.
-  const SAMPLE = {
-    info: { screenName: "author", createdAt: new Date(2026, 7, 13) },
-    postId: "1234567890",
-    subreddit: "subreddit",
-  };
+  // Подставные автор и сабреддит для превью: настройки управляют только
+  // папками, поэтому имя файла в превью не показывается — оно всегда
+  // одинаковое, зато занимает вторую строку и растит окно.
+  const SAMPLE = { author: "author", subreddit: "subreddit" };
 
   function escapeHtml(str) {
     return String(str).replace(/[&<>"']/g, (c) => {
@@ -95,17 +88,16 @@
   function updatePreviews() {
     const settings = currentSettings();
 
-    for (const [kind, ext, el] of [
-      ["video", "mp4", previews.video],
-      ["photo", "jpg", previews.photo],
-      ["redditVideo", "mp4", previews.redditVideo],
-      ["redditImage", "jpg", previews.redditImage],
+    for (const [kind, el] of [
+      ["video", previews.video],
+      ["photo", previews.photo],
+      ["redditVideo", previews.redditVideo],
+      ["redditImage", previews.redditImage],
     ]) {
-      const filename = buildFilename(SAMPLE.info, SAMPLE.postId, ext, undefined, kind);
+      // Имя файла не передаём — тогда buildPathParts вернёт одни папки.
       const { parts } = buildPathParts(settings, {
-        filename,
         kind,
-        screenName: SAMPLE.info.screenName,
+        screenName: SAMPLE.author,
         subreddit: SAMPLE.subreddit,
       });
       el.innerHTML = renderPath(["Downloads", ...parts]);
