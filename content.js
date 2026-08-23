@@ -13,7 +13,7 @@
 
   // Санитизация, имена файлов и дефолты настроек живут в shared.js: те же
   // функции нужны попапу для превью пути, и расходиться им нельзя.
-  const { DEFAULT_SETTINGS, buildFilename, baseMediaKey, buildPathParts, downloadIconSVG } =
+  const { DEFAULT_SETTINGS, buildFilename, baseMediaKey, buildPathParts, downloadIconSVG, base64ToBytes } =
     globalThis.XVDShared;
 
   // Параметры конвертации. X отдаёт «гифки» как mp4, поэтому настоящий .gif
@@ -164,13 +164,6 @@
       target.addEventListener(name, onOk, { once: true });
       target.addEventListener("error", onErr, { once: true });
     });
-  }
-
-  function base64ToBytes(b64) {
-    const bin = atob(b64);
-    const out = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
-    return out;
   }
 
   function bytesToBase64(bytes) {
@@ -595,149 +588,24 @@
     return bestArea > 0 ? best : null;
   }
 
-  // Браузеры надёжно принимают в буфер только PNG, поэтому JPEG и webp
-  // приходится перерисовывать через canvas. PNG отдаём как есть.
-  async function bytesToPngBlob(bytes, ext) {
-    const mime = ext === "jpg" ? "image/jpeg" : `image/${ext}`;
-    const source = new Blob([bytes], { type: mime });
-    if (ext === "png") return source;
-
-    const url = URL.createObjectURL(source);
-    try {
-      const img = new Image();
-      img.src = url;
-      await img.decode();
-
-      const canvas = document.createElement("canvas");
-      canvas.width = img.naturalWidth;
-      canvas.height = img.naturalHeight;
-      canvas.getContext("2d").drawImage(img, 0, 0);
-
-      return await new Promise((resolve, reject) => {
-        canvas.toBlob(
-          (blob) => (blob ? resolve(blob) : reject(new Error("canvas.toBlob вернул пустоту"))),
-          "image/png"
-        );
-      });
-    } finally {
-      URL.revokeObjectURL(url);
-    }
-  }
-
-  async function photoAsPng(photo) {
-    // Забираем через фоновый скрипт: у pbs.twimg.com нет CORS-заголовков,
-    // content script сам файл не получит.
-    const res = await browser.runtime.sendMessage({ type: "fetchMedia", url: photo.url });
-    if (!res || !res.success) throw new Error((res && res.error) || "fetch failed");
-    return bytesToPngBlob(base64ToBytes(res.base64), photo.ext || "jpg");
-  }
-
-  // Серия копирований подряд: чем быстрее гребёшь картинки, тем дальше
-  // уезжает подпись. Счётчик живёт в памяти вкладки и сбрасывается после
-  // паузы — реагировать он должен на «тащу пачкой», а не на «скопировал
-  // десяток за день». Ступени точные: между ними подпись обычная, иначе
-  // шутка приедается на второй раз.
-  const COPY_STREAK_RESET_MS = 30000;
-  const COPY_STREAK_MESSAGES = {
-    3: "📋 Image copied ×3",
-    5: "🔥 On a roll",
-    10: "🚀 Easy there",
-    15: "😭 Stop it",
-  };
-  let copyStreak = 0;
-  let lastCopyAt = 0;
-
-  function copiedMessage() {
-    const now = Date.now();
-    copyStreak = now - lastCopyAt > COPY_STREAK_RESET_MS ? 1 : copyStreak + 1;
-    lastCopyAt = now;
-    return COPY_STREAK_MESSAGES[copyStreak] || "📋 Image copied";
-  }
-
-  let toastTimer = null;
-  function toast(text, ok) {
-    let el = document.querySelector(".xvd-toast");
-    if (!el) {
-      el = document.createElement("div");
-      el.className = "xvd-toast";
-      document.body.appendChild(el);
-    }
-
-    // Привязываем к картинке, а не к окну: во вьювере картинка редко занимает
-    // всю ширину, и подпись по центру экрана висела бы сбоку от неё.
-    // Координаты getBoundingClientRect отсчитываются от окна — как раз то,
-    // что нужно для position: fixed.
-    const anchor = visiblePhotoImg();
-    if (anchor) {
-      const r = anchor.getBoundingClientRect();
-      el.style.left = `${r.left + r.width / 2}px`;
-      // Не даём уехать за верхний край, если картинка выше экрана.
-      el.style.top = `${Math.max(16, r.top + 16)}px`;
-    } else {
-      el.style.left = "50%";
-      el.style.top = "16px";
-    }
-
-    el.textContent = text;
-    el.classList.toggle("xvd-toast-error", !ok);
-    el.classList.add("xvd-toast-show");
-    clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => el.classList.remove("xvd-toast-show"), 1800);
-  }
-
-  let copyBusy = false;
-
   // Слушаем на фазе перехвата: у X свои обработчики клавиш, и они могут
   // остановить всплытие раньше нас.
   document.addEventListener(
     "keydown",
-    async (e) => {
-      // e.code, а не e.key: на не-латинской раскладке key придёт кириллицей.
-      if (e.code !== "KeyC") return;
-      if (!(e.ctrlKey || e.metaKey) || e.altKey || e.shiftKey) return;
-      if (!copyShortcutEnabled) return;
-
-      // Пользователь печатает — не вмешиваемся.
-      const active = document.activeElement;
-      if (
-        active &&
-        (active.tagName === "INPUT" ||
-          active.tagName === "TEXTAREA" ||
-          active.isContentEditable)
-      ) {
-        return;
-      }
-
-      // Выделен текст — копирование принадлежит браузеру.
-      const selection = window.getSelection();
-      if (selection && !selection.isCollapsed && String(selection).trim()) return;
+    (e) => {
+      if (!copyShortcutEnabled || !XVDCopy.isCopyShortcut(e)) return;
 
       const target = viewerPhoto();
       if (!target) return;
-      const photo = target.photo;
 
       e.preventDefault();
-      if (copyBusy) return;
-      copyBusy = true;
-
-      try {
-        const png = photoAsPng(photo);
-        try {
-          // Промис внутри ClipboardItem держит жест «свежим», пока картинка
-          // качается: иначе долгая загрузка съедала бы окно пользовательского
-          // действия и браузер отказывал бы в записи.
-          await navigator.clipboard.write([new ClipboardItem({ "image/png": png })]);
-        } catch (err) {
-          // Не всякий браузер принимает промис — тогда дожидаемся блоба.
-          await navigator.clipboard.write([new ClipboardItem({ "image/png": await png })]);
-        }
-        toast(copiedMessage(), true);
-      } catch (err) {
-        console.warn("[XVD] copy failed:", err);
-        toast("⚠️ Copy failed", false);
-      } finally {
-        copyBusy = false;
-      }
+      XVDCopy.copyImage({
+        url: target.photo.url,
+        ext: target.photo.ext,
+        // Подпись показываем у самой картинки — во вьювере она редко
+        // занимает всю ширину.
+        anchor: visiblePhotoImg(),
+      });
     },
     true
   );

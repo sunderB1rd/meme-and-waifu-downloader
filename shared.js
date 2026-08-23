@@ -27,6 +27,7 @@
     // none | author | subreddit. Не флажок, как у картинок X: на реддите
     // для коллекции обычно осмысленнее сабреддит, а не автор поста.
     redditFolderBy: "none",
+    redditCopyShortcut: true,
   };
 
   // Для сегмента пути фолбэк не нужен: пустой сегмент просто выбрасывается,
@@ -248,6 +249,16 @@
     return options[0];
   }
 
+  // Фоновый скрипт отдаёт файлы строкой base64: через границу сообщений
+  // двоичные данные не проходят. Нужно и content.js (для конвертации GIF),
+  // и copy.js (для буфера обмена).
+  function base64ToBytes(b64) {
+    const bin = atob(b64);
+    const out = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+    return out;
+  }
+
   // --- Что разрешено качать ---
   // Домены, с которых расширение согласно скачивать. Проверка живёт здесь,
   // а вызывается в background.js: content-скрипты работают на самой
@@ -308,6 +319,7 @@
     parsePackagedMedia,
     ALLOWED_MEDIA_HOSTS,
     isAllowedMediaUrl,
+    base64ToBytes,
     downloadIconSVG,
   };
 })();

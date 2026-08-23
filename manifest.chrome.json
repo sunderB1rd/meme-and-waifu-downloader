@@ -30,7 +30,8 @@
     "*://twitter.com/*",
     "*://x.com/*",
     "*://*.twimg.com/*",
-    "*://*.reddit.com/*"
+    "*://*.reddit.com/*",
+    "*://*.redd.it/*"
   ],
   "background": {
     "service_worker": "background.js"
@@ -43,6 +44,7 @@
       ],
       "js": [
         "shared.js",
+        "copy.js",
         "gif-encoder.js",
         "content.js"
       ],
@@ -58,6 +60,7 @@
       ],
       "js": [
         "shared.js",
+        "copy.js",
         "reddit.js"
       ],
       "css": [

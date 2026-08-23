@@ -22,6 +22,7 @@
     "copyShortcut",
     "redditVideoAlwaysAsk",
     "redditImageAlwaysAsk",
+    "redditCopyShortcut",
   ];
   // На реддите папку осмысленно раскладывать и по автору, и по сабреддиту,
   // поэтому здесь выбор из трёх, а не тумблер, как у картинок X. Действует

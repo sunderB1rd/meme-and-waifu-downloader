@@ -29,8 +29,24 @@
     settingsCache = await browser.storage.local.get(DEFAULT_SETTINGS);
     return settingsCache;
   }
+  // Обработчик Ctrl+C должен решить, вмешиваться ли, до вызова
+  // preventDefault — то есть синхронно. Асинхронный getSettings() для этого
+  // не годится, поэтому держим значение отдельной переменной.
+  let copyShortcutEnabled = DEFAULT_SETTINGS.redditCopyShortcut;
+  async function refreshCopyShortcut() {
+    try {
+      copyShortcutEnabled = !!(await getSettings()).redditCopyShortcut;
+    } catch (e) {
+      /* настройки недоступны — остаёмся на значении по умолчанию */
+    }
+  }
+  refreshCopyShortcut();
+
   browser.storage.onChanged.addListener((changes, area) => {
-    if (area === "local") settingsCache = null;
+    if (area === "local") {
+      settingsCache = null;
+      refreshCopyShortcut();
+    }
   });
 
   // --- Пост из атрибутов ---
@@ -533,6 +549,50 @@
 
     placeInLightbox(box, btn);
   }
+
+  // Какая картинка сейчас видна в просмотрщике — для подписи о копировании.
+  function visibleLightboxImg(box) {
+    for (const li of box.querySelectorAll('li[slot^="page-"]')) {
+      const visible =
+        li.style.visibility === "visible" ||
+        window.getComputedStyle(li).visibility === "visible";
+      if (visible) return li.querySelector("img.media-lightbox-img");
+    }
+    return box.querySelector("img.media-lightbox-img");
+  }
+
+  // --- Копирование по Ctrl+C ---
+  // Только в открытом просмотрщике: в ленте картинок много, и гадать,
+  // какую из них человек имел в виду, не о чем.
+  //
+  // Видео и гифки пропускаем намеренно: в буфер уходит PNG, и от гифки
+  // осталась бы неподвижная первая рамка. Раз помочь нечем, не мешаем —
+  // Ctrl+C отработает как обычно.
+  document.addEventListener(
+    "keydown",
+    (e) => {
+      if (!copyShortcutEnabled || !XVDCopy.isCopyShortcut(e)) return;
+
+      const box = document.getElementById("shreddit-media-lightbox");
+      if (!box) return;
+
+      const target = lightboxTarget(box);
+      if (!target) return;
+      if (target.post.type === "video" || target.post.type === "gif") return;
+
+      e.preventDefault();
+      XVDCopy.copyImage({
+        // Адрес добываем функцией, а не заранее: у галереи за ним нужен
+        // запрос, и он должен уложиться внутрь промиса для буфера.
+        source: async () => {
+          const media = await collectMedia(target.post);
+          return media[target.only ?? 0] || {};
+        },
+        anchor: visibleLightboxImg(box),
+      });
+    },
+    true
+  );
 
   function scan() {
     for (const el of document.querySelectorAll("shreddit-post[post-type]")) {

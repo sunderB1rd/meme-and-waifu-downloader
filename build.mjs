@@ -13,6 +13,7 @@ const dist = join(root, "dist");
 // Файлы, общие для обеих сборок
 const SHARED = [
   "shared.js",
+  "copy.js",
   "content.js",
   "reddit.js",
   "gif-encoder.js",

@@ -29,7 +29,8 @@
     "*://twitter.com/*",
     "*://x.com/*",
     "*://*.twimg.com/*",
-    "*://*.reddit.com/*"
+    "*://*.reddit.com/*",
+    "*://*.redd.it/*"
   ],
   "background": {
     "scripts": [
@@ -45,6 +46,7 @@
       ],
       "js": [
         "shared.js",
+        "copy.js",
         "gif-encoder.js",
         "content.js"
       ],
@@ -60,6 +62,7 @@
       ],
       "js": [
         "shared.js",
+        "copy.js",
         "reddit.js"
       ],
       "css": [
