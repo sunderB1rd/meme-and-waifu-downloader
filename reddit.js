@@ -365,17 +365,23 @@
     }
   }
 
-  // Кнопка «скачать всю галерею». Основное место — панель действий, как
-  // у X. Если ни один слот не подошёл, садится вторым кружком поверх
-  // картинки: лучше не на своём месте, чем никак.
-  function addGalleryButton(postEl, container, post) {
-    const total = galleryCount(container);
-    const btn = makeButton(
-      "xvd-reddit-all-btn",
-      total > 1 ? `Download all (${total})` : "Download all",
-      post
-    );
+  // Подпись кнопки в панели действий. У галереи она качает все кадры,
+  // у остальных постов — единственное, что там есть.
+  function actionLabel(post, total) {
+    if (post.type === "gallery") {
+      return total > 1 ? `Download all (${total})` : "Download all";
+    }
+    if (post.type === "video") return "Download video";
+    if (post.type === "gif") return "Download GIF";
+    return "Download image";
+  }
+
+  // Кнопка в панели действий поста — та же, что у X внизу твита.
+  function addActionButton(postEl, container, post) {
+    const total = post.type === "gallery" ? galleryCount(container) : 1;
+    const btn = makeButton("xvd-reddit-all-btn", actionLabel(post, total), post);
     btn.innerHTML = downloadIconSVG(16);
+
     if (total > 1) {
       const label = document.createElement("span");
       label.textContent = total;
@@ -387,7 +393,11 @@
       applyNeighbourLook(postEl, btn);
       return;
     }
-    if (!container) return;
+
+    // Запасное место — вторым кружком поверх медиа, но только у галереи:
+    // там кнопка на картинке качает один кадр, а эта все. У остальных постов
+    // обе делали бы одно и то же, и второй кружок был бы просто шумом.
+    if (post.type !== "gallery" || !container) return;
 
     btn.className = "xvd-photo-btn xvd-photo-btn-all";
     btn.innerHTML = downloadIconSVG(18.75);
@@ -400,23 +410,32 @@
     container.appendChild(btn);
   }
 
-  // Панель действий гидратируется позже самой карточки: пока её нет, слота
-  // тоже нет, и кнопка садится на запасное место. Пробуем перенести её на
-  // следующих проходах — но не бесконечно, иначе на прокрутке мы бы
-  // пересоздавали её каждый кадр.
+  // Панель действий гидратируется позже карточки. Пока её нет, слот не
+  // находится: у галереи кнопка садится на запасное место, у остальных постов
+  // не появляется вовсе. И то и другое лечится повтором на следующих проходах,
+  // но не бесконечным — иначе на прокрутке мы пересоздавали бы её каждый кадр.
   const PLACEMENT_RETRIES = 10;
 
-  function retryPlacement(postEl, container, post) {
-    const fallback = postEl.querySelector(".xvd-photo-btn-all");
-    if (!fallback) return;
+  function ensureActionButton(postEl, container, post) {
+    const existing = postEl.querySelector(".xvd-reddit-all-btn, .xvd-photo-btn-all");
+
+    // Уже в панели и от этого же поста — больше ничего не нужно.
+    if (
+      existing &&
+      existing.dataset.xvdPost === post.id &&
+      existing.classList.contains("xvd-reddit-all-btn")
+    ) {
+      applyNeighbourLook(postEl, existing);
+      return;
+    }
 
     const [forPost, count] = String(postEl.dataset.xvdPlaceTries || "").split(":");
     const tries = forPost === post.id ? Number(count) || 0 : 0;
     if (tries >= PLACEMENT_RETRIES) return;
-    postEl.dataset.xvdPlaceTries = `${post.id}:${tries + 1}`;
 
-    fallback.remove();
-    addGalleryButton(postEl, container, post);
+    if (existing) existing.remove();
+    postEl.dataset.xvdPlaceTries = `${post.id}:${tries + 1}`;
+    addActionButton(postEl, container, post);
   }
 
   // Узлы переиспользуются при скролле: кнопка от другого поста качала бы
@@ -448,15 +467,7 @@
         );
       }
 
-      if (post.type === "gallery") {
-        ensureButton(el, ".xvd-reddit-all-btn, .xvd-photo-btn-all", post, () => {
-          delete el.dataset.xvdPlaceTries;
-          addGalleryButton(el, container, post);
-        });
-        retryPlacement(el, container, post);
-        const placed = el.querySelector(".xvd-reddit-all-btn");
-        if (placed) applyNeighbourLook(el, placed);
-      }
+      ensureActionButton(el, container, post);
     }
   }
 
