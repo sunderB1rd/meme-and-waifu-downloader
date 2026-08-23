@@ -1,32 +1,15 @@
+// Проверка адресов живёт в shared.js: там до неё дотягиваются тесты.
+// В Firefox файл подключает манифест (background.scripts), в Chrome
+// фоновый скрипт — service worker, и путь туда только один.
+if (typeof importScripts === "function" && !globalThis.XVDShared) {
+  importScripts("shared.js");
+}
+
 (function () {
   // Firefox использует browser.*, Chrome — chrome.*
   const browser = globalThis.browser ?? globalThis.chrome;
 
-  // Домены, с которых разрешено качать. Проверяем здесь, а не в
-  // content-скриптах: те работают на самой странице, и прислать поддельное
-  // сообщение с чужим адресом может любой скрипт этой страницы.
-  //
-  // Сверка идёт по точному совпадению или поддомену, поэтому подставной
-  // evil-twimg.com сюда не пролезет.
-  const ALLOWED_MEDIA_HOSTS = [
-    "twimg.com", // X: pbs.twimg.com, video.twimg.com
-    "redd.it", // реддит: i.redd.it, preview.redd.it
-  ];
-
-  function isAllowedMediaUrl(url) {
-    try {
-      const u = new URL(url);
-      // Только https: по http медиа не отдаётся, а разрешать схему без
-      // шифрования значило бы открыть дорогу подмене ответа по пути.
-      if (u.protocol !== "https:") return false;
-      const host = u.hostname.toLowerCase();
-      return ALLOWED_MEDIA_HOSTS.some(
-        (allowed) => host === allowed || host.endsWith("." + allowed)
-      );
-    } catch (e) {
-      return false;
-    }
-  }
+  const { isAllowedMediaUrl } = globalThis.XVDShared;
 
   function waitForDownload(downloadId) {
     return new Promise((resolve) => {

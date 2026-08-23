@@ -33,6 +33,7 @@
   ],
   "background": {
     "scripts": [
+      "shared.js",
       "background.js"
     ]
   },

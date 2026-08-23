@@ -357,7 +357,6 @@
     // именно в них. Забираем и повторяем его же конструкцию в CSS.
     for (const [ours, theirs] of [
       ["--xvd-bg-hover", "--button-color-background-hover"],
-      ["--xvd-hover", "--color-interactive-hover"],
       ["--xvd-bg-active", "--button-color-background-active"],
       ["--xvd-pressed", "--color-interactive-pressed"],
     ]) {

@@ -248,6 +248,35 @@
     return options[0];
   }
 
+  // --- Что разрешено качать ---
+  // Домены, с которых расширение согласно скачивать. Проверка живёт здесь,
+  // а вызывается в background.js: content-скрипты работают на самой
+  // странице, и прислать поддельное сообщение с чужим адресом может любой
+  // скрипт этой страницы. Фоновый скрипт — единственный, у кого есть право
+  // на загрузки, и он обязан сомневаться во всём, что ему приходит.
+  //
+  // Сверка идёт по точному совпадению или поддомену, поэтому подставной
+  // evil-twimg.com сюда не пролезет.
+  const ALLOWED_MEDIA_HOSTS = [
+    "twimg.com", // X: pbs.twimg.com, video.twimg.com
+    "redd.it", // реддит: i.redd.it, preview.redd.it, packaged-media.redd.it
+  ];
+
+  function isAllowedMediaUrl(url) {
+    try {
+      const u = new URL(url);
+      // Только https: по http медиа не отдаётся, а разрешать схему без
+      // шифрования значило бы открыть дорогу подмене ответа по пути.
+      if (u.protocol !== "https:") return false;
+      const host = u.hostname.toLowerCase();
+      return ALLOWED_MEDIA_HOSTS.some(
+        (allowed) => host === allowed || host.endsWith("." + allowed)
+      );
+    } catch (e) {
+      return false;
+    }
+  }
+
   // --- Иконка кнопки ---
   // Одна на оба сайта: и content.js, и reddit.js рисуют одну и ту же
   // кнопку, и держать её двумя копиями значит когда-нибудь их развести.
@@ -277,6 +306,8 @@
     extFromUrl,
     parseGalleryJson,
     parsePackagedMedia,
+    ALLOWED_MEDIA_HOSTS,
+    isAllowedMediaUrl,
     downloadIconSVG,
   };
 })();
