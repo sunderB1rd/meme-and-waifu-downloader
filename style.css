@@ -220,3 +220,48 @@ div[data-testid="tweetPhoto"]:hover .xvd-photo-btn,
 .xvd-photo-btn-all {
   right: 48px;
 }
+
+/* Кнопка в полноэкранном просмотрщике реддита. В отличие от кнопки поверх
+   картинки в ленте, эта видна всегда: наводить в просмотрщике не на что,
+   картинка занимает весь экран.
+
+   Размер, скругление и фон снимает с крестика закрытия reddit.js — рядом
+   с ним она и стоит. Значения ниже запасные. z-index на единицу выше
+   крестика (у него 10), иначе он бы её перекрыл. */
+.xvd-lightbox-btn {
+  position: absolute;
+  z-index: 11;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--xvd-size, 40px);
+  height: var(--xvd-size, 40px);
+  padding: 0;
+  box-sizing: border-box;
+  border: none;
+  border-radius: var(--xvd-radius, 9999px);
+  background: var(--xvd-bg, rgba(0, 0, 0, 0.6));
+  color: #fff;
+  cursor: pointer;
+  transition: box-shadow 0.15s ease, color 0.15s ease;
+}
+
+/* Подсветка слоем поверх снятого фона, а не заменой: фон у крестика
+   полупрозрачный, и заменять его сплошным цветом значило бы потерять
+   всю его приспособляемость к тому, что под ним. */
+.xvd-lightbox-btn:hover {
+  box-shadow: inset 0 0 0 999px rgba(255, 255, 255, 0.12);
+}
+
+.xvd-lightbox-btn.xvd-loading {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.xvd-lightbox-btn.xvd-success {
+  color: rgb(0, 186, 124);
+}
+
+.xvd-lightbox-btn.xvd-error {
+  color: rgb(244, 33, 46);
+}

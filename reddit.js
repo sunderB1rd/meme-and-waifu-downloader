@@ -449,6 +449,91 @@
     create();
   }
 
+  // --- Полноэкранный просмотрщик ---
+  // Какой пост открыт, по разметке лайтбокса надёжно не понять: у галереи
+  // внутри есть <gallery-carousel post-id>, а у одиночной картинки его нет.
+  // Зато просмотрщик всегда открывают кликом по посту, так что запоминаем
+  // последний такой клик и держим его запасным вариантом.
+  //
+  // Слушаем на фазе перехвата: реддит на своих обработчиках может остановить
+  // всплытие раньше нас.
+  let lastClickedPost = null;
+  document.addEventListener(
+    "click",
+    (e) => {
+      const el =
+        e.target instanceof Element && e.target.closest("shreddit-post[post-type]");
+      if (el) lastClickedPost = readPost(el);
+    },
+    true
+  );
+
+  function lightboxTarget(box) {
+    const carousel = box.querySelector("gallery-carousel[post-id]");
+    // Номер кадра спрашиваем у самой карусели просмотрщика, а не у той,
+    // что осталась в ленте: пролистывают-то открытую.
+    const only = carousel ? visibleGalleryIndex(box) : null;
+
+    if (carousel) {
+      const id = (carousel.getAttribute("post-id") || "").replace(/^t3_/, "");
+      const el = id && document.querySelector(`shreddit-post[id="t3_${id}"]`);
+      const post = el && readPost(el);
+      if (post) return { post, only };
+    }
+
+    return lastClickedPost ? { post: lastClickedPost, only } : null;
+  }
+
+  // Крестик закрытия сидит в правом верхнем углу, поэтому встаём левее него.
+  // Отступ, размер и фон снимаем с него же: числами тут промахнуться легко,
+  // а выглядеть кнопка должна как родная соседка крестика.
+  function placeInLightbox(box, btn) {
+    const host = box.querySelector('[data-testid="lightbox-template"]') || box;
+    host.appendChild(btn);
+
+    const close = box.querySelector('[data-testid="close-button"]');
+    if (!close) return;
+
+    const s = window.getComputedStyle(close);
+    const gap = parseFloat(s.right) || 12;
+    const width = close.getBoundingClientRect().width || 40;
+
+    btn.style.top = s.top;
+    btn.style.right = `${gap + width + 8}px`;
+    btn.style.setProperty("--xvd-size", s.height);
+    btn.style.setProperty("--xvd-radius", s.borderRadius);
+    btn.style.setProperty("--xvd-bg", s.backgroundColor);
+  }
+
+  function lightboxLabel(post) {
+    // В просмотрщике кнопка всегда качает то, что открыто, — даже у галереи.
+    if (post.type === "video") return "Download video";
+    if (post.type === "gif") return "Download GIF";
+    return "Download image";
+  }
+
+  function ensureLightboxButton() {
+    const box = document.getElementById("shreddit-media-lightbox");
+    if (!box) return;
+
+    const target = lightboxTarget(box);
+    if (!target) return;
+
+    const existing = box.querySelector(".xvd-lightbox-btn");
+    if (existing && existing.dataset.xvdPost === target.post.id) return;
+    if (existing) existing.remove();
+
+    const btn = makeButton("xvd-lightbox-btn", lightboxLabel(target.post), target.post);
+    btn.innerHTML = downloadIconSVG(20);
+    onClick(btn, () => {
+      // Кадр спрашиваем в момент нажатия: галерею могли пролистать.
+      const now = lightboxTarget(box);
+      if (now) downloadPost(now.post, btn, now.only);
+    });
+
+    placeInLightbox(box, btn);
+  }
+
   function scan() {
     for (const el of document.querySelectorAll("shreddit-post[post-type]")) {
       const post = readPost(el);
@@ -469,6 +554,8 @@
 
       ensureActionButton(el, container, post);
     }
+
+    ensureLightboxButton();
   }
 
   let scanScheduled = false;
