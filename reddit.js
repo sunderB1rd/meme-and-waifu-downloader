@@ -137,10 +137,16 @@
   }
 
   // --- Скачивание ---
+  // Гифки и кадры галерей — это картинки, и складываются они к картинкам.
+  // К видео относится только post-type="video".
+  function pathKind(post) {
+    return post.type === "video" ? "redditVideo" : "redditImage";
+  }
+
   async function downloadOne(url, filename, settings, post) {
     const { parts, saveAs } = buildPathParts(settings, {
       filename,
-      kind: "reddit",
+      kind: pathKind(post),
       screenName: post.author,
       subreddit: post.subreddit,
     });

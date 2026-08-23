@@ -106,11 +106,11 @@ test("extFromUrl читает расширение из адреса i.redd.it",
   assert.equal(extFromUrl("https://www.reddit.com/gallery/1vrt47j"), "");
 });
 
-test("путь реддита складывается из своих настроек", () => {
+test("картинки реддита складываются по своим настройкам", () => {
   const parts = (settings) =>
     buildPathParts(settings, {
       filename: "a.jpg",
-      kind: "reddit",
+      kind: "redditImage",
       screenName: "MiyurinMiyu",
       subreddit: "typemoon",
     }).parts;
@@ -128,11 +128,32 @@ test("путь реддита складывается из своих наст�
   ]);
 });
 
+test("видео реддита идёт в свою папку и без раскладки", () => {
+  // Раскладка по автору и сабреддиту — только для картинок: роликов от
+  // одного автора обычно единицы, и папка на каждого плодит пустые папки.
+  const settings = { ...DEFAULT_SETTINGS, redditFolderBy: "subreddit" };
+  const { parts } = buildPathParts(settings, {
+    filename: "a.mp4",
+    kind: "redditVideo",
+    screenName: "MiyurinMiyu",
+    subreddit: "typemoon",
+  });
+  deepEqual(parts, ["RedditVideos", "a.mp4"]);
+});
+
+test("гифки и кадры галерей считаются картинками", () => {
+  // На X гифка уходит в папку видео, потому что там она и есть mp4.
+  // На реддите это настоящий gif, и место ему среди картинок.
+  const settings = { ...DEFAULT_SETTINGS, redditImageSubfolder: "Pics" };
+  const { parts } = buildPathParts(settings, { filename: "a.gif", kind: "redditImage" });
+  deepEqual(parts, ["Pics", "a.gif"]);
+});
+
 test("настройки реддита не влияют на X и наоборот", () => {
   const settings = {
     ...DEFAULT_SETTINGS,
     redditFolderBy: "subreddit",
-    redditAlwaysAsk: true,
+    redditImageAlwaysAsk: true,
     photoByAuthor: true,
   };
 
@@ -143,16 +164,24 @@ test("настройки реддита не влияют на X и наобор
     subreddit: "typemoon",
   });
   deepEqual(photo.parts, ["TwitterImages", "someone", "a.jpg"]);
-  assert.equal(photo.saveAs, false, "redditAlwaysAsk не должен спрашивать про картинки X");
+  assert.equal(photo.saveAs, false, "redditImageAlwaysAsk не должен спрашивать про картинки X");
 
   const reddit = buildPathParts(settings, {
     filename: "a.jpg",
-    kind: "reddit",
+    kind: "redditImage",
     screenName: "someone",
     subreddit: "typemoon",
   });
   deepEqual(reddit.parts, ["RedditImages", "typemoon", "a.jpg"]);
   assert.equal(reddit.saveAs, true);
+});
+
+test("неизвестный вид медиа не роняет путь", () => {
+  // Файл ляжет в корень загрузок, но имя останется целым — это заметно
+  // сразу, в отличие от исключения где-то в фоновом скрипте.
+  const { parts, saveAs } = buildPathParts(DEFAULT_SETTINGS, { filename: "a.jpg", kind: "нет такого" });
+  deepEqual(parts, ["a.jpg"]);
+  assert.equal(saveAs, false);
 });
 
 // --- Видео ---

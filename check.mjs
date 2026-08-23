@@ -200,6 +200,31 @@ for (const [target, manifest] of [
   else ok(`dist/${target}: все ${refs.size} упомянутых файлов на месте`);
 }
 
+// --- Попап ---
+// Опечатка в id даёт null вместо элемента, и попап падает на первом же
+// обращении — молча, с пустым окном. Сверяем то, что ищет popup.js,
+// с тем, что есть в разметке.
+section("Попап");
+{
+  const js = readFileSync(join(root, "popup.js"), "utf8");
+  const html = readFileSync(join(root, "popup.html"), "utf8");
+
+  const wanted = new Set();
+  for (const m of js.matchAll(/getElementById\("([^"]+)"\)/g)) wanted.add(m[1]);
+  // Поля перечислены списками, а getElementById зовётся по ним в цикле.
+  for (const list of js.matchAll(
+    /const (?:textFields|toggleFields|selectFields) = \[([^\]]*)\]/g
+  )) {
+    for (const name of list[1].matchAll(/"([^"]+)"/g)) wanted.add(name[1]);
+  }
+
+  const present = new Set([...html.matchAll(/id="([^"]+)"/g)].map((m) => m[1]));
+  const missing = [...wanted].filter((id) => !present.has(id));
+
+  if (missing.length) fail(`popup.js ищет id, которых нет в разметке: ${missing.join(", ")}`);
+  else ok(`${wanted.size} id из popup.js найдены в разметке`);
+}
+
 // --- Тесты ---
 section("Тесты");
 try {

@@ -46,6 +46,7 @@
       --background: #0a0a0a;        /* oklch(0.145 0 0) */
       --foreground: #fafafa;        /* oklch(0.985 0 0) */
       --card: #171717;              /* oklch(0.205 0 0) — на ступень светлее фона */
+      --muted: #262626;             /* oklch(0.269 0 0) — жёлоб переключателя вкладок */
       --primary: #e5e5e5;           /* oklch(0.922 0 0) — трек включённого свитча */
       --primary-foreground: #171717;/* oklch(0.205 0 0) — бегунок на включённом треке */
       --muted-foreground: #a3a3a3;  /* oklch(0.708 0 0) */
@@ -105,6 +106,92 @@
       font-size: 13px;
       line-height: 1.4;
       color: var(--muted-foreground);
+    }
+
+    /* --- Переключатель вкладок ---
+       Tabs из shadcn: жёлоб на всю ширину, активная вкладка — приподнятая
+       карточка на нём. Вкладки делят ширину поровну: их всего две, и
+       прижатые к левому краю они читались бы как случайные кнопки. */
+    .tabs {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 3px;
+      padding: 3px;
+      margin-bottom: 10px;
+      background: var(--muted);
+      border-radius: var(--radius);
+    }
+
+    .tab {
+      height: 28px;
+      border: none;
+      border-radius: var(--radius-sm);
+      background: transparent;
+      color: var(--muted-foreground);
+      font-family: inherit;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background-color 0.15s ease, color 0.15s ease;
+    }
+
+    .tab:hover {
+      color: var(--foreground);
+    }
+
+    .tab[aria-selected="true"] {
+      background: var(--card);
+      color: var(--foreground);
+      box-shadow:
+        0 1px 2px rgba(0, 0, 0, 0.2),
+        inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    }
+
+    /* Обводкой, а не тенью: у активной вкладки тень уже занята подъёмом,
+       и вторая перебила бы её. */
+    .tab:focus-visible {
+      outline: 2px solid var(--ring);
+      outline-offset: 2px;
+    }
+
+    /* --- Выпадающий список ---
+       Тот же короб, что у текстового поля. Родную стрелку убираем и рисуем
+       свою: системную на тёмном фоне не перекрасить. */
+    select {
+      width: 100%;
+      height: 34px;
+      background: rgba(255, 255, 255, 0.045);
+      border: 1px solid var(--input);
+      border-radius: var(--radius-md);
+      color: var(--foreground);
+      padding: 0 30px 0 33px;
+      font-size: 13px;
+      font-family: var(--font-sans);
+      outline: none;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
+      appearance: none;
+      -webkit-appearance: none;
+      cursor: pointer;
+    }
+
+    select:focus-visible {
+      border-color: var(--ring);
+      box-shadow: 0 0 0 3px rgba(115, 115, 115, 0.5);
+    }
+
+    /* Сам список рисует система, и на тёмной теме он остаётся светлым,
+       пока цвета не заданы самим пунктам. */
+    select option {
+      background: var(--card);
+      color: var(--foreground);
+    }
+
+    /* Стрелка справа: иконку слева ставит общее правило .input-wrap svg,
+       поэтому этой нужен свой якорь. */
+    .input-wrap .chevron {
+      left: auto;
+      right: 11px;
     }
 
     /* --- Секции настроек --- */
@@ -373,80 +460,167 @@
     <p>Download settings</p>
   </div>
 
-  <div class="card section">
-    <div class="section-title">
-      <!-- lucide/video -->
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <path d="m16 13 5.223 3.482a.5.5 0 0 0 .777-.416V7.87a.5.5 0 0 0-.752-.432L16 10.5" />
-        <rect x="2" y="6" width="14" height="12" rx="2" />
-      </svg>
-      Video &amp; GIF
-    </div>
-    <label class="field-label" for="videoSubfolder">Subfolder inside Downloads</label>
-    <span class="input-wrap">
-      <!-- lucide/folder -->
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z" />
-      </svg>
-      <input type="text" id="videoSubfolder" placeholder="TwitterVideos" />
-    </span>
-    <div class="preview" id="videoPreview"></div>
-    <label class="row">
-      <span class="row-label">Convert GIFs to real .gif</span>
-      <span class="switch">
-        <input type="checkbox" id="gifConvert" />
-        <span class="slider"></span>
-      </span>
-    </label>
-    <label class="row">
-      <span class="row-label">Ask every time</span>
-      <span class="switch">
-        <input type="checkbox" id="videoAlwaysAsk" />
-        <span class="slider"></span>
-      </span>
-    </label>
+  <div class="tabs" role="tablist">
+    <button type="button" class="tab" id="tab-x" data-tab="x" role="tab" aria-selected="true" aria-controls="panel-x">X</button>
+    <button type="button" class="tab" id="tab-reddit" data-tab="reddit" role="tab" aria-selected="false" aria-controls="panel-reddit">Reddit</button>
   </div>
 
-  <div class="card section">
-    <div class="section-title">
-      <!-- lucide/image -->
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <rect width="18" height="18" x="3" y="3" rx="2" ry="2" />
-        <circle cx="9" cy="9" r="2" />
-        <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" />
-      </svg>
-      Images
+  <div id="panel-x" role="tabpanel" aria-labelledby="tab-x" data-panel="x">
+
+    <div class="card section">
+      <div class="section-title">
+        <!-- lucide/video -->
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="m16 13 5.223 3.482a.5.5 0 0 0 .777-.416V7.87a.5.5 0 0 0-.752-.432L16 10.5" />
+          <rect x="2" y="6" width="14" height="12" rx="2" />
+        </svg>
+        Video &amp; GIF
+      </div>
+      <label class="field-label" for="videoSubfolder">Subfolder inside Downloads</label>
+      <span class="input-wrap">
+        <!-- lucide/folder -->
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z" />
+        </svg>
+        <input type="text" id="videoSubfolder" placeholder="TwitterVideos" />
+      </span>
+      <div class="preview" id="videoPreview"></div>
+      <label class="row">
+        <span class="row-label">Convert GIFs to real .gif</span>
+        <span class="switch">
+          <input type="checkbox" id="gifConvert" />
+          <span class="slider"></span>
+        </span>
+      </label>
+      <label class="row">
+        <span class="row-label">Ask every time</span>
+        <span class="switch">
+          <input type="checkbox" id="videoAlwaysAsk" />
+          <span class="slider"></span>
+        </span>
+      </label>
     </div>
-    <label class="field-label" for="photoSubfolder">Subfolder</label>
-    <span class="input-wrap">
-      <!-- lucide/folder -->
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z" />
-      </svg>
-      <input type="text" id="photoSubfolder" placeholder="TwitterImages" />
-    </span>
-    <div class="preview" id="photoPreview"></div>
-    <label class="row">
-      <span class="row-label">Sort into folders by author</span>
-      <span class="switch">
-        <input type="checkbox" id="photoByAuthor" />
-        <span class="slider"></span>
+
+    <div class="card section">
+      <div class="section-title">
+        <!-- lucide/image -->
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <rect width="18" height="18" x="3" y="3" rx="2" ry="2" />
+          <circle cx="9" cy="9" r="2" />
+          <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" />
+        </svg>
+        Images
+      </div>
+      <label class="field-label" for="photoSubfolder">Subfolder</label>
+      <span class="input-wrap">
+        <!-- lucide/folder -->
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z" />
+        </svg>
+        <input type="text" id="photoSubfolder" placeholder="TwitterImages" />
       </span>
-    </label>
-    <label class="row">
-      <span class="row-label">Ask every time</span>
-      <span class="switch">
-        <input type="checkbox" id="photoAlwaysAsk" />
-        <span class="slider"></span>
+      <div class="preview" id="photoPreview"></div>
+      <label class="row">
+        <span class="row-label">Sort into folders by author</span>
+        <span class="switch">
+          <input type="checkbox" id="photoByAuthor" />
+          <span class="slider"></span>
+        </span>
+      </label>
+      <label class="row">
+        <span class="row-label">Ask every time</span>
+        <span class="switch">
+          <input type="checkbox" id="photoAlwaysAsk" />
+          <span class="slider"></span>
+        </span>
+      </label>
+      <label class="row">
+        <span class="row-label">Copy with Ctrl+C in viewer</span>
+        <span class="switch">
+          <input type="checkbox" id="copyShortcut" />
+          <span class="slider"></span>
+        </span>
+      </label>
+    </div>
+
+  </div>
+
+  <div id="panel-reddit" role="tabpanel" aria-labelledby="tab-reddit" data-panel="reddit" hidden>
+    <div class="card section">
+      <div class="section-title">
+        <!-- lucide/video -->
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="m16 13 5.223 3.482a.5.5 0 0 0 .777-.416V7.87a.5.5 0 0 0-.752-.432L16 10.5" />
+          <rect x="2" y="6" width="14" height="12" rx="2" />
+        </svg>
+        Video
+      </div>
+      <label class="field-label" for="redditVideoSubfolder">Subfolder inside Downloads</label>
+      <span class="input-wrap">
+        <!-- lucide/folder -->
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z" />
+        </svg>
+        <input type="text" id="redditVideoSubfolder" placeholder="RedditVideos" />
       </span>
-    </label>
-    <label class="row">
-      <span class="row-label">Copy with Ctrl+C in viewer</span>
-      <span class="switch">
-        <input type="checkbox" id="copyShortcut" />
-        <span class="slider"></span>
+      <div class="preview" id="redditVideoPreview"></div>
+      <label class="row">
+        <span class="row-label">Ask every time</span>
+        <span class="switch">
+          <input type="checkbox" id="redditVideoAlwaysAsk" />
+          <span class="slider"></span>
+        </span>
+      </label>
+    </div>
+
+    <div class="card section">
+      <div class="section-title">
+        <!-- lucide/image -->
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <rect width="18" height="18" x="3" y="3" rx="2" ry="2" />
+          <circle cx="9" cy="9" r="2" />
+          <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" />
+        </svg>
+        Images &amp; GIFs
+      </div>
+      <label class="field-label" for="redditImageSubfolder">Subfolder</label>
+      <span class="input-wrap">
+        <!-- lucide/folder -->
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z" />
+        </svg>
+        <input type="text" id="redditImageSubfolder" placeholder="RedditImages" />
       </span>
-    </label>
+      <div class="preview" id="redditImagePreview"></div>
+
+      <label class="field-label" for="redditFolderBy">Sort into subfolders</label>
+      <span class="input-wrap">
+        <!-- lucide/folder-tree -->
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M20 10a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1h-2.5a1 1 0 0 1-.8-.4l-.9-1.2A1 1 0 0 0 15 3h-2a1 1 0 0 0-1 1v5a1 1 0 0 0 1 1Z" />
+          <path d="M20 21a1 1 0 0 0 1-1v-3a1 1 0 0 0-1-1h-2.9a1 1 0 0 1-.88-.55l-.42-.85a1 1 0 0 0-.92-.6H13a1 1 0 0 0-1 1v5a1 1 0 0 0 1 1Z" />
+          <path d="M3 5a2 2 0 0 0 2 2h3" />
+          <path d="M3 3v13a2 2 0 0 0 2 2h3" />
+        </svg>
+        <select id="redditFolderBy">
+          <option value="none">Don&#39;t sort</option>
+          <option value="author">By author</option>
+          <option value="subreddit">By subreddit</option>
+        </select>
+        <!-- lucide/chevron-down -->
+        <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="m6 9 6 6 6-6" />
+        </svg>
+      </span>
+
+      <label class="row">
+        <span class="row-label">Ask every time</span>
+        <span class="switch">
+          <input type="checkbox" id="redditImageAlwaysAsk" />
+          <span class="slider"></span>
+        </span>
+      </label>
+    </div>
   </div>
 
   <div class="footer">

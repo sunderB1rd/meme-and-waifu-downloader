@@ -20,8 +20,10 @@
     photoByAuthor: false,
     gifConvert: true,
     copyShortcut: true,
-    redditSubfolder: "RedditImages",
-    redditAlwaysAsk: false,
+    redditVideoSubfolder: "RedditVideos",
+    redditVideoAlwaysAsk: false,
+    redditImageSubfolder: "RedditImages",
+    redditImageAlwaysAsk: false,
     // none | author | subreddit. Не флажок, как у картинок X: на реддите
     // для коллекции обычно осмысленнее сабреддит, а не автор поста.
     redditFolderBy: "none",
@@ -83,32 +85,42 @@
 
   // Разбор пути на сегменты — общий для скачивания и для превью. Соединять их
   // в строку или рисовать по одному, решает вызывающий.
+  // Каждый вид медиа складывается по своим настройкам. Соответствие задано
+  // явным списком, а не склейкой имени ключа из названия вида: при склейке
+  // опечатка молча отправила бы файлы в корень загрузок вместо подпапки.
+  const PATH_KINDS = {
+    video: { subfolder: "videoSubfolder", ask: "videoAlwaysAsk" },
+    photo: { subfolder: "photoSubfolder", ask: "photoAlwaysAsk" },
+    redditVideo: { subfolder: "redditVideoSubfolder", ask: "redditVideoAlwaysAsk" },
+    redditImage: { subfolder: "redditImageSubfolder", ask: "redditImageAlwaysAsk" },
+  };
+
+  // Раскладка по вложенным папкам есть только у картинок. У видео её нет
+  // намеренно: роликов от одного автора обычно единицы, и папка на каждого
+  // превращает загрузки в свалку из папок с одним файлом.
+  function groupFolder(kind, s, screenName, subreddit) {
+    if (kind === "photo") return s.photoByAuthor ? sanitize(screenName) : null;
+    if (kind === "redditImage") {
+      if (s.redditFolderBy === "author") return sanitize(screenName);
+      if (s.redditFolderBy === "subreddit") return sanitize(subreddit);
+    }
+    return null;
+  }
+
   function buildPathParts(settings, { filename, kind, screenName, subreddit }) {
     const s = settings || {};
-    const isPhoto = kind === "photo";
-    const isReddit = kind === "reddit";
-
-    let subfolder;
-    let saveAs;
-    let group = null;
-
-    if (isReddit) {
-      subfolder = sanitizeFolder(s.redditSubfolder);
-      saveAs = !!s.redditAlwaysAsk;
-      if (s.redditFolderBy === "author") group = sanitize(screenName);
-      else if (s.redditFolderBy === "subreddit") group = sanitize(subreddit);
-    } else {
-      subfolder = sanitizeFolder(isPhoto ? s.photoSubfolder : s.videoSubfolder);
-      saveAs = isPhoto ? !!s.photoAlwaysAsk : !!s.videoAlwaysAsk;
-      if (isPhoto && s.photoByAuthor) group = sanitize(screenName);
-    }
+    const keys = PATH_KINDS[kind];
 
     const parts = [];
+    const subfolder = keys ? sanitizeFolder(s[keys.subfolder]) : "";
     if (subfolder) parts.push(subfolder);
+
+    const group = groupFolder(kind, s, screenName, subreddit);
     if (group) parts.push(group);
+
     if (filename) parts.push(filename);
 
-    return { parts, saveAs };
+    return { parts, saveAs: keys ? !!s[keys.ask] : false };
   }
 
   // --- Реддит ---
