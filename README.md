@@ -164,6 +164,7 @@ export default {
 | `manifest.json` | Firefox. Фоновый скрипт как `scripts`. |
 | `manifest.chrome.json` | Chrome. Фоновый скрипт как `service_worker`, разрешение `offscreen`, без gecko-полей. |
 | `offscreen.html` / `offscreen.js` | Только для Chrome. Создаёт blob URL для готового GIF — в service worker это невозможно. В Firefox файлы лежат без дела. |
+| `logo.svg` / `make-icons.mjs` | Исходник иконки и растеризатор к нему: `node make-icons.mjs` пересобирает все пять PNG в `icons/`. Правится вектор, растр производный. Зависимостей нет, поэтому разбор SVG и кодировщик PNG свои — поддержан ровно тот набор, что встречается в `logo.svg`. |
 | `build.mjs` / `release.mjs` | Сборка двух папок из общих исходников и подготовка релиза. |
 | `check.mjs` / `tests/` | Проверки без браузера. Тесты на встроенном `node:test`, без зависимостей. |
 
