@@ -213,7 +213,7 @@ section("Попап");
   for (const m of js.matchAll(/getElementById\("([^"]+)"\)/g)) wanted.add(m[1]);
   // Поля перечислены списками, а getElementById зовётся по ним в цикле.
   for (const list of js.matchAll(
-    /const (?:textFields|toggleFields|selectFields) = \[([^\]]*)\]/g
+    /const (?:textFields|toggleFields|radioFields) = \[([^\]]*)\]/g
   )) {
     for (const name of list[1].matchAll(/"([^"]+)"/g)) wanted.add(name[1]);
   }

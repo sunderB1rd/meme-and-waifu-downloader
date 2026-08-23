@@ -154,46 +154,76 @@
       outline-offset: 2px;
     }
 
-    /* --- Выпадающий список ---
-       Тот же короб, что у текстового поля. Родную стрелку убираем и рисуем
-       свою: системную на тёмном фоне не перекрасить. */
-    select {
-      width: 100%;
-      height: 34px;
-      background: rgba(255, 255, 255, 0.045);
-      border: 1px solid var(--input);
+    /* --- Сегментный переключатель ---
+       Раскладка выбирается из трёх коротких вариантов, поэтому сегментами,
+       а не выпадающим списком: список рисует система, и в тёмной теме он
+       остаётся светлым — покрасить его нечем.
+
+       Внутри радиокнопки: выбор из взаимоисключающих вариантов — это ровно
+       они, и клавиатура со скринридером получают его бесплатно. Сам input
+       спрятан, вид несёт соседний span. Через :has() было бы короче, но он
+       появился в Firefox только в 121-м, а мы держим 115. */
+    .segmented {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 3px;
+      padding: 3px;
+      background: var(--muted);
       border-radius: var(--radius-md);
-      color: var(--foreground);
-      padding: 0 30px 0 33px;
-      font-size: 13px;
-      font-family: var(--font-sans);
-      outline: none;
-      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-      transition: border-color 0.15s ease, box-shadow 0.15s ease;
-      appearance: none;
-      -webkit-appearance: none;
+    }
+
+    .segment {
+      position: relative;
+      display: block;
       cursor: pointer;
     }
 
-    select:focus-visible {
-      border-color: var(--ring);
-      box-shadow: 0 0 0 3px rgba(115, 115, 115, 0.5);
+    .segment input {
+      position: absolute;
+      opacity: 0;
+      pointer-events: none;
     }
 
-    /* Сам список рисует система, и на тёмной теме он остаётся светлым,
-       пока цвета не заданы самим пунктам. */
-    select option {
-      background: var(--card);
+    .segment span {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 26px;
+      border-radius: var(--radius-sm);
+      color: var(--muted-foreground);
+      font-size: 12px;
+      font-weight: 500;
+      transition: background-color 0.15s ease, color 0.15s ease;
+    }
+
+    .segment:hover span {
       color: var(--foreground);
     }
 
-    /* Стрелка справа: иконку слева ставит общее правило .input-wrap svg,
-       поэтому этой нужен свой якорь. */
-    .input-wrap .chevron {
-      left: auto;
-      right: 11px;
+    .segment input:checked + span {
+      background: var(--card);
+      color: var(--foreground);
+      box-shadow:
+        0 1px 2px rgba(0, 0, 0, 0.2),
+        inset 0 1px 0 rgba(255, 255, 255, 0.05);
     }
 
+    .segment input:focus-visible + span {
+      outline: 2px solid var(--ring);
+      outline-offset: 2px;
+    }
+
+    /* --- Отбивки между блоками карточки ---
+       Без них подпись следующего поля прилипает к превью предыдущего, а
+       тумблер — к переключателю над ним, и три разных блока читаются как
+       один сплошной. */
+    .preview + .field-label {
+      margin-top: 14px;
+    }
+
+    .segmented + .row {
+      margin-top: 12px;
+    }
     /* --- Секции настроек --- */
     .section {
       padding: 14px;
@@ -225,7 +255,9 @@
 
     /* Label: text-sm font-medium, обычный текст переднего плана —
        не приглушённый, как было в исходной вёрстке. */
-    label.field-label {
+    /* Не label.field-label: подпись группы переключателя — это span,
+       у неё нет одного поля, к которому можно привязаться через for. */
+    .field-label {
       display: block;
       font-size: 13px;
       font-weight: 500;
@@ -593,25 +625,21 @@
       </span>
       <div class="preview" id="redditImagePreview"></div>
 
-      <label class="field-label" for="redditFolderBy">Sort into subfolders</label>
-      <span class="input-wrap">
-        <!-- lucide/folder-tree -->
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M20 10a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1h-2.5a1 1 0 0 1-.8-.4l-.9-1.2A1 1 0 0 0 15 3h-2a1 1 0 0 0-1 1v5a1 1 0 0 0 1 1Z" />
-          <path d="M20 21a1 1 0 0 0 1-1v-3a1 1 0 0 0-1-1h-2.9a1 1 0 0 1-.88-.55l-.42-.85a1 1 0 0 0-.92-.6H13a1 1 0 0 0-1 1v5a1 1 0 0 0 1 1Z" />
-          <path d="M3 5a2 2 0 0 0 2 2h3" />
-          <path d="M3 3v13a2 2 0 0 0 2 2h3" />
-        </svg>
-        <select id="redditFolderBy">
-          <option value="none">Don&#39;t sort</option>
-          <option value="author">By author</option>
-          <option value="subreddit">By subreddit</option>
-        </select>
-        <!-- lucide/chevron-down -->
-        <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="m6 9 6 6 6-6" />
-        </svg>
-      </span>
+      <span class="field-label" id="redditFolderByLabel">Sort into subfolders</span>
+      <div class="segmented" id="redditFolderBy" role="radiogroup" aria-labelledby="redditFolderByLabel">
+        <label class="segment">
+          <input type="radio" name="redditFolderBy" value="none" />
+          <span>None</span>
+        </label>
+        <label class="segment">
+          <input type="radio" name="redditFolderBy" value="author" />
+          <span>Author</span>
+        </label>
+        <label class="segment">
+          <input type="radio" name="redditFolderBy" value="subreddit" />
+          <span>Subreddit</span>
+        </label>
+      </div>
 
       <label class="row">
         <span class="row-label">Ask every time</span>

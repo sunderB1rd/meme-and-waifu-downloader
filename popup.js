@@ -30,10 +30,10 @@
   // На реддите папку осмысленно раскладывать и по автору, и по сабреддиту,
   // поэтому здесь выбор из трёх, а не тумблер, как у картинок X. Действует
   // только на картинки — у видео раскладки нет, как и на X.
-  const selectFields = ["redditFolderBy"];
+  const radioFields = ["redditFolderBy"];
 
   const els = {};
-  for (const key of [...textFields, ...toggleFields, ...selectFields]) {
+  for (const key of [...textFields, ...toggleFields, ...radioFields]) {
     els[key] = document.getElementById(key);
   }
   const previews = {
@@ -42,6 +42,21 @@
     redditVideo: document.getElementById("redditVideoPreview"),
     redditImage: document.getElementById("redditImagePreview"),
   };
+
+  // Значение группы хранится в самой отмеченной кнопке, а не в контейнере.
+  // Если не отмечена ни одна (в хранилище лежит что-то постороннее),
+  // отвечаем первым вариантом — он же и дефолтный.
+  function radioValue(key) {
+    const checked = els[key].querySelector("input:checked");
+    return checked ? checked.value : "none";
+  }
+
+  function setRadio(key, value) {
+    const input =
+      els[key].querySelector(`input[value="${value}"]`) ||
+      els[key].querySelector("input");
+    if (input) input.checked = true;
+  }
 
   // Пример, на котором показываем итоговый путь. Поля те же, что у настоящего
   // поста, — превью строится тем же buildFilename, что и реальное имя файла.
@@ -73,7 +88,7 @@
     const s = {};
     for (const key of textFields) s[key] = els[key].value;
     for (const key of toggleFields) s[key] = els[key].checked;
-    for (const key of selectFields) s[key] = els[key].value;
+    for (const key of radioFields) s[key] = radioValue(key);
     return s;
   }
 
@@ -130,8 +145,8 @@
     for (const key of toggleFields) {
       els[key].checked = !!stored[key];
     }
-    for (const key of selectFields) {
-      els[key].value = stored[key];
+    for (const key of radioFields) {
+      setRadio(key, stored[key]);
     }
     updatePreviews();
 
@@ -159,9 +174,10 @@
     });
   }
 
-  for (const key of selectFields) {
+  for (const key of radioFields) {
+    // Слушаем группу целиком: change всплывает от самой радиокнопки.
     els[key].addEventListener("change", async () => {
-      await browser.storage.local.set({ [key]: els[key].value });
+      await browser.storage.local.set({ [key]: radioValue(key) });
       updatePreviews();
     });
   }
