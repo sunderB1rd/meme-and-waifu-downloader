@@ -138,18 +138,24 @@
 
   // Текущий кадр карусели. Реддит держит все кадры в разметке разом и прячет
   // лишние через visibility, поэтому «самый видимый» искать не нужно —
-  // достаточно спросить, у кого visible. Номер в slot="page-N" совпадает
-  // с порядком в gallery_data.items, так что он же годится как индекс.
-  function visibleGalleryIndex(container) {
-    for (const li of container.querySelectorAll('gallery-carousel li[slot^="page-"]')) {
+  // достаточно спросить, у кого visible.
+  function visiblePage(scope) {
+    for (const li of scope.querySelectorAll('gallery-carousel li[slot^="page-"]')) {
       const visible =
         li.style.visibility === "visible" ||
         window.getComputedStyle(li).visibility === "visible";
-      if (!visible) continue;
-      const n = Number(li.getAttribute("slot").replace("page-", ""));
-      if (Number.isFinite(n) && n > 0) return n - 1;
+      if (visible) return li;
     }
-    return 0;
+    return null;
+  }
+
+  // Номер в slot="page-N" совпадает с порядком в gallery_data.items,
+  // так что он же годится как индекс кадра.
+  function visibleGalleryIndex(scope) {
+    const li = visiblePage(scope);
+    if (!li) return 0;
+    const n = Number(li.getAttribute("slot").replace("page-", ""));
+    return Number.isFinite(n) && n > 0 ? n - 1 : 0;
   }
 
   // --- Скачивание ---
@@ -266,17 +272,17 @@
     });
   }
 
+  // Подпись по виду медиа. Нужна в трёх местах: на кнопке поверх картинки,
+  // в панели действий и в просмотрщике — и везде она одна и та же.
+  function mediaLabel(post) {
+    if (post.type === "video") return "Download video";
+    if (post.type === "gif") return "Download GIF";
+    return "Download image";
+  }
+
   // Кнопка поверх картинки: качает то, что сейчас видно.
   function addImageButton(container, post) {
-    const btn = makeButton(
-      "xvd-photo-btn",
-      post.type === "video"
-        ? "Download video"
-        : post.type === "gif"
-          ? "Download GIF"
-          : "Download image",
-      post
-    );
+    const btn = makeButton("xvd-photo-btn", mediaLabel(post), post);
     btn.innerHTML = downloadIconSVG(18.75);
     onClick(btn, () => {
       // Кадр карусели спрашиваем в момент клика, а не при создании кнопки:
@@ -381,15 +387,12 @@
     }
   }
 
-  // Подпись кнопки в панели действий. У галереи она качает все кадры,
-  // у остальных постов — единственное, что там есть.
+  // В панели действий у галереи кнопка качает все кадры разом, поэтому
+  // подпись у неё своя. У остальных постов качать нечего кроме того
+  // единственного, что в посте есть.
   function actionLabel(post, total) {
-    if (post.type === "gallery") {
-      return total > 1 ? `Download all (${total})` : "Download all";
-    }
-    if (post.type === "video") return "Download video";
-    if (post.type === "gif") return "Download GIF";
-    return "Download image";
+    if (post.type !== "gallery") return mediaLabel(post);
+    return total > 1 ? `Download all (${total})` : "Download all";
   }
 
   // Кнопка в панели действий поста — та же, что у X внизу твита.
@@ -521,12 +524,6 @@
     btn.style.setProperty("--xvd-bg", s.backgroundColor);
   }
 
-  function lightboxLabel(post) {
-    // В просмотрщике кнопка всегда качает то, что открыто, — даже у галереи.
-    if (post.type === "video") return "Download video";
-    if (post.type === "gif") return "Download GIF";
-    return "Download image";
-  }
 
   function ensureLightboxButton() {
     const box = document.getElementById("shreddit-media-lightbox");
@@ -539,7 +536,9 @@
     if (existing && existing.dataset.xvdPost === target.post.id) return;
     if (existing) existing.remove();
 
-    const btn = makeButton("xvd-lightbox-btn", lightboxLabel(target.post), target.post);
+    // В просмотрщике кнопка всегда качает то, что открыто, — даже у галереи,
+    // поэтому подпись здесь без «all».
+    const btn = makeButton("xvd-lightbox-btn", mediaLabel(target.post), target.post);
     btn.innerHTML = downloadIconSVG(20);
     onClick(btn, () => {
       // Кадр спрашиваем в момент нажатия: галерею могли пролистать.
@@ -551,14 +550,10 @@
   }
 
   // Какая картинка сейчас видна в просмотрщике — для подписи о копировании.
+  // У одиночной картинки карусели нет, поэтому есть запасной путь.
   function visibleLightboxImg(box) {
-    for (const li of box.querySelectorAll('li[slot^="page-"]')) {
-      const visible =
-        li.style.visibility === "visible" ||
-        window.getComputedStyle(li).visibility === "visible";
-      if (visible) return li.querySelector("img.media-lightbox-img");
-    }
-    return box.querySelector("img.media-lightbox-img");
+    const li = visiblePage(box);
+    return (li || box).querySelector("img.media-lightbox-img");
   }
 
   // --- Копирование по Ctrl+C ---
