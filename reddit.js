@@ -180,11 +180,10 @@
       saveAs,
     });
 
-    if (!res || !res.success) {
+    if (!res?.success && !res?.canceled) {
       console.warn("[XVD] reddit download failed:", url, res && res.error);
-      return false;
     }
-    return true;
+    return res || { success: false };
   }
 
   // only — индекс одной картинки галереи или null, если нужны все.
@@ -198,6 +197,8 @@
     btn.classList.add("xvd-loading");
 
     let ok = false;
+    let pending = false;
+    let canceled = false;
     try {
       const settings = await getSettings();
       const media = await collectMedia(post);
@@ -224,13 +225,18 @@
           post.type === "video" ? "video" : "photo"
         );
 
-        let done = await downloadOne(item.url, filename, settings, post);
+        let result = await downloadOne(item.url, filename, settings, post);
         // Запасной адрес на preview.redd.it: если оригинала на i.redd.it
         // не оказалось, пробуем то, что реддит отдал сам.
-        if (!done && item.fallbackUrl) {
-          done = await downloadOne(item.fallbackUrl, filename, settings, post);
+        if (result.retryable && item.fallbackUrl) {
+          result = await downloadOne(item.fallbackUrl, filename, settings, post);
         }
-        if (!done) ok = false;
+        if (result.canceled) {
+          canceled = true;
+          break;
+        }
+        if (!result.success) ok = false;
+        pending ||= !!result.pending;
       }
     } catch (e) {
       ok = false;
@@ -238,9 +244,10 @@
     }
 
     btn.classList.remove("xvd-loading");
+    delete btn.dataset.xvdBusy;
+    if (canceled || (ok && pending)) return;
     btn.classList.add(ok ? "xvd-success" : "xvd-error");
     setTimeout(() => btn.classList.remove("xvd-success", "xvd-error"), 2500);
-    delete btn.dataset.xvdBusy;
   }
 
   // --- Кнопки ---

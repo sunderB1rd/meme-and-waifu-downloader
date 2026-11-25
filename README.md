@@ -51,14 +51,13 @@ Firefox не ставит неподписанные расширения нас
 
 1. Завести аккаунт на `addons.mozilla.org`, получить ключи на странице `.../developers/addon/api/key/` — понадобятся **JWT issuer** и **JWT secret**.
 2. Установить утилиту: `npm install --global web-ext` (нужен Node.js).
-3. Из папки `dist/firefox`:
+3. Сохрани ключи AMO в `%USERPROFILE%\.web-ext-config.mjs`. Формат файла показан ниже, в разделе «Сборка релиза». Если файл уже настроен, сразу переходи к команде. Запусти её вручную из корня проекта, где лежит `release.mjs`:
 
-   ```
-   web-ext sign --api-key="ключ" --api-secret="секрет" --channel=unlisted
+   ```powershell
+   node release.mjs --sign
    ```
 
-   `unlisted` = подпись лично для себя, без публикации и без ревью человеком.
-4. Готовый `.xpi` появится в `web-ext-artifacts`. Перетащить его в окно Firefox или поставить через `about:addons` → шестерёнка → «Установить дополнение из файла».
+4. Подписанный `.xpi` появится в соседней папке `meme-and-waifu-downloader-artifacts`. В Firefox открой `about:addons` → шестерёнка → «Установить дополнение из файла» и выбери этот `.xpi`.
 
 > **Важно:** перед каждой новой подписью поднимать `version` в `manifest.json`. AMO не примет повторно тот же номер, даже если предыдущий файл удалён.
 

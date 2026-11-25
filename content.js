@@ -8,6 +8,11 @@
   // ключ картинки -> { tweetId, idx } — обратный индекс, чтобы не перебирать всю карту
   const photoIndex = new Map();
   const MAX_TWEETS = 600;
+  const PHOTO_SELECTOR = 'img[src*="pbs.twimg.com/media/"], img[srcset*="pbs.twimg.com/media/"]';
+  const VIEWER_SELECTOR = '[aria-modal="true"], [role="dialog"]';
+  const STATUS_PATH = /^\/(\w+)\/status\/(\d+)(?:[/?#]|$)/;
+  const buttonMedia = new WeakMap();
+  const photoButtons = new Map();
 
   let settingsCache = null;
 
@@ -51,6 +56,17 @@
 
   // --- Внедряем inject.js в контекст страницы ---
   function injectPageScript() {
+    const root = document.head || document.documentElement;
+    if (!root) {
+      // На document_start корневой элемент ещё может не быть создан.
+      const observer = new MutationObserver(() => {
+        if (!document.documentElement) return;
+        observer.disconnect();
+        injectPageScript();
+      });
+      observer.observe(document, { childList: true });
+      return;
+    }
     const script = document.createElement("script");
     script.src = browser.runtime.getURL("inject.js");
     script.onload = function () {
@@ -59,13 +75,8 @@
     script.onerror = function (e) {
       console.error("[XVD] failed to inject inject.js:", e);
     };
-    (document.head || document.documentElement).appendChild(script);
+    root.appendChild(script);
   }
-  // Внедряем немедленно, а не по DOMContentLoaded: X успевает отправить первые
-  // запросы GraphQL задолго до него, и хуки fetch/XHR вставали уже после них —
-  // у постов из первой отрисовки кнопки не появлялись до скролла. На
-  // document_start documentElement уже существует, ждать нечего.
-  injectPageScript();
 
   function indexPhotos(tweetId, info) {
     info.photos.forEach((p, idx) => {
@@ -133,9 +144,8 @@
     });
     if (!res || !res.success) {
       console.warn("[XVD] download failed:", path, res && res.error);
-      return false;
     }
-    return true;
+    return res || { success: false };
   }
 
   // --- Конвертация «гифки» X (на деле mp4) в настоящий GIF ---
@@ -281,21 +291,22 @@
       filename: path,
       saveAs,
     });
-    if (res && res.success) return true;
+    if (res && res.success) return res;
 
     if (res && res.canFallback) {
       console.warn("[XVD] could not prepare the file, saving via link:", res.error);
       saveViaAnchor(bytes, filename);
-      return true;
+      return { success: true, pending: true };
     }
 
     // Сюда попадает и отмена диалога сохранения — повторять не нужно
     console.warn("[XVD] gif was not saved:", res && res.error);
-    return false;
+    return res || { success: false };
   }
 
-  function flashResult(btn, ok) {
+  function flashResult(btn, ok, pending = false) {
     btn.classList.remove("xvd-loading");
+    if (ok && pending) return;
     btn.classList.add(ok ? "xvd-success" : "xvd-error");
     setTimeout(() => btn.classList.remove("xvd-success", "xvd-error"), 2500);
   }
@@ -354,25 +365,41 @@
     });
 
     let allOk = true;
+    let pending = false;
     for (const job of jobs) {
       try {
-        const ok = job.asGif
+        const result = job.asGif
           ? await downloadGif(job.url, job.filename, info.screenName)
           : await downloadOne(job.url, job.filename, job.kind, info.screenName);
-        if (!ok) allOk = false;
+        if (!result.success) allOk = false;
+        pending ||= !!result.pending;
       } catch (e) {
         allOk = false;
         console.warn("[XVD] download error:", e);
       }
     }
     delete btn.dataset.xvdBusy;
-    flashResult(btn, allOk);
+    flashResult(btn, allOk, pending);
   }
 
   function findActionBar(article) {
-    const groups = article.querySelectorAll('div[role="group"]');
-    if (!groups.length) return null;
-    return groups[groups.length - 1];
+    const actions = [...article.querySelectorAll("[data-engagement-action]")].filter(
+      (action) => action.closest("article") === article
+    );
+    const reply = actions.find((action) => action.dataset.engagementAction === "reply");
+    const replyGroup = reply?.closest('[role="group"]');
+    if (replyGroup?.closest("article") === article) return replyGroup;
+    if (actions.length > 1) {
+      let bar = actions[0].parentElement;
+      while (bar !== article) {
+        if (actions.every((action) => bar.contains(action))) return bar;
+        bar = bar.parentElement;
+      }
+    }
+    const groups = [...article.querySelectorAll('[role="group"]')].filter(
+      (group) => group.closest("article") === article
+    );
+    return groups.at(-1) || reply?.parentElement || null;
   }
 
   // Иконки у твиттера 18.75px в ленте и 22.5px на странице поста, а цвет
@@ -411,24 +438,30 @@
   }
 
   function addTweetButton(article, tweetId, info) {
-    if (!mediaCount(info)) return;
     const actionBar = findActionBar(article);
-    if (!actionBar) return;
 
     // Узлы переиспользуются при скролле: если кнопка осталась от другого твита,
     // она указывала бы на чужое медиа — пересоздаём.
-    const existing = actionBar.querySelector(".xvd-video-btn");
+    const existing = [...article.querySelectorAll(".xvd-video-btn")].find(
+      (btn) => btn.closest("article") === article
+    );
     if (existing) {
-      if (existing.dataset.xvdTweet === tweetId) return;
+      if (actionBar?.contains(existing) && info &&
+          existing.dataset.xvdTweet === tweetId && existing.title === describeMedia(info)) {
+        buttonMedia.set(existing, info);
+        return;
+      }
       const oldWrapper = existing.closest(".xvd-btn-wrapper");
       (oldWrapper || existing).remove();
     }
+    if (!actionBar || !info || !mediaCount(info)) return;
 
     const btn = document.createElement("button");
     btn.type = "button";
     btn.className = "xvd-download-btn xvd-video-btn";
     btn.title = describeMedia(info);
     btn.dataset.xvdTweet = tweetId;
+    buttonMedia.set(btn, info);
 
     const { size: iconSize, color } = detectIconStyle(actionBar);
     const btnSize = detectButtonSize(actionBar, iconSize);
@@ -450,7 +483,7 @@
     btn.addEventListener("click", (e) => {
       e.preventDefault();
       e.stopPropagation();
-      downloadAll(info, tweetId, btn);
+      downloadAll(buttonMedia.get(btn), tweetId, btn);
     });
 
     const wrapper = document.createElement("div");
@@ -468,36 +501,76 @@
     return { tweetId: entry.tweetId, info, idx: entry.idx };
   }
 
-  function addPhotoButtons() {
-    const imgs = document.querySelectorAll('img[src*="pbs.twimg.com/media/"]');
+  function mediaImageSource(img, path) {
+    // В X src может быть заглушкой, пока браузер не выбрал вариант из srcset.
+    const prefix = `https://pbs.twimg.com/${path}/`;
+    if (img.currentSrc.startsWith(prefix)) return img.currentSrc;
+    if (img.src.startsWith(prefix)) return img.src;
+    for (const candidate of img.srcset.split(",")) {
+      const url = candidate.trim().split(/\s+/, 1)[0];
+      if (url.startsWith(prefix)) return url;
+    }
+    return null;
+  }
+
+  function originalPhoto(source) {
+    const url = new URL(source);
+    const extMatch = /\.(jpg|jpeg|png|webp|gif)$/i.exec(url.pathname);
+    let ext = (url.searchParams.get("format") || extMatch?.[1] || "jpg").toLowerCase();
+    if (!/^(jpg|jpeg|png|webp|gif)$/.test(ext)) return null;
+    // WebP в srcset — формат превью; CDN отдаёт полноразмерный JPEG.
+    if (ext === "webp") ext = "jpg";
+    if (extMatch) url.pathname = url.pathname.slice(0, -extMatch[0].length);
+    url.search = new URLSearchParams({ format: ext, name: "orig" });
+    return { url: url.href, ext };
+  }
+
+  function photoInViewer(img, source) {
+    const identity = STATUS_PATH.exec(location.pathname);
+    const view = VIEWER_PATH.exec(location.pathname);
+    if (!identity || !view || !img.closest(VIEWER_SELECTOR)) return null;
+    const photo = source && originalPhoto(source);
+    if (!photo) return null;
+    return {
+      tweetId: identity[2],
+      idx: 0,
+      viewerIndex: Number(view[2]) - 1,
+      info: { screenName: identity[1], photos: [photo] },
+    };
+  }
+
+  function addPhotoButtons(visiblePhotos) {
+    const imgs = new Set(document.querySelectorAll(PHOTO_SELECTOR));
+    const viewerImg = VIEWER_PATH.test(location.pathname) ? visiblePhotoImg() : null;
+    for (const [img, entry] of photoButtons) {
+      if (imgs.has(img)) continue;
+      entry.btn.remove();
+      photoButtons.delete(img);
+    }
 
     imgs.forEach((img) => {
-      if (!img.src) return;
-      const key = baseMediaKey(img.src);
-      const container = img.closest('div[data-testid="tweetPhoto"]') || img.parentElement;
+      const source = mediaImageSource(img, "media");
+      const key = source && baseMediaKey(source);
+      const media = img.closest('picture') || img;
+      const container = img.closest('div[data-testid="tweetPhoto"]') || media.parentElement;
+      const match = key && (lookupPhoto(key) || visiblePhotos.get(img) ||
+        (img === viewerImg && photoInViewer(img, source)));
+      const existing = photoButtons.get(img);
 
       // React при перерисовке переписывает className своим значением и стирает
       // наш класс, из-за чего кнопка переставала показываться по наведению.
-      // Кнопку он не трогает — она не в его дереве. Поэтому класс возвращаем.
-      const hasButton = !!(container && container.querySelector(".xvd-photo-btn"));
-      if (hasButton) container.classList.add("xvd-photo-container");
-
-      // Пропускаем, только если кнопка на месте и относится к этой же картинке.
-      // Одного dataset мало: React может заменить контейнер целиком, переиспользовав
-      // сам <img>. Кнопка уезжает со старым контейнером, ключ на картинке остаётся —
-      // и кнопка не вернулась бы до следующей смены src.
-      if (hasButton && img.dataset.xvdKey === key) return;
-
-      const match = lookupPhoto(key);
-      if (!match) return; // не фото твита (например, аватарка в карточке)
-
-      const { tweetId, info, idx } = match;
-      const photo = info.photos[idx];
-
-      if (!container) return;
-
-      const stale = container.querySelector(".xvd-photo-btn");
-      if (stale) stale.remove();
+      // Контейнер он также может заменить, переиспользовав сам <img>.
+      if (existing && match && container && existing.btn.parentElement === container &&
+          img.dataset.xvdKey === key) {
+        container.classList.add("xvd-photo-container");
+        existing.match = match;
+        return;
+      }
+      if (existing) {
+        existing.btn.remove();
+        photoButtons.delete(img);
+      }
+      if (!match || !container) return;
 
       img.dataset.xvdKey = key;
       container.classList.add("xvd-photo-container");
@@ -510,6 +583,8 @@
       btn.className = "xvd-photo-btn";
       btn.title = "Download image";
       btn.innerHTML = downloadIconSVG(18.75);
+      const entry = { btn, match };
+      photoButtons.set(img, entry);
       btn.addEventListener("click", async (e) => {
         e.preventDefault();
         e.stopPropagation();
@@ -517,16 +592,18 @@
         btn.dataset.xvdBusy = "1";
         btn.classList.remove("xvd-success", "xvd-error");
         btn.classList.add("xvd-loading");
+        const { tweetId, info, idx, viewerIndex } = entry.match;
+        const photo = info.photos[idx];
         const filename = buildFilename(
           info,
           tweetId,
           photo.ext || "jpg",
-          info.photos.length > 1 ? idx : undefined,
+          viewerIndex ?? (info.photos.length > 1 ? idx : undefined),
           "photo"
         );
         try {
-          const ok = await downloadOne(photo.url, filename, "photo", info.screenName);
-          flashResult(btn, ok);
+          const result = await downloadOne(photo.url, filename, "photo", info.screenName);
+          flashResult(btn, result.success, result.pending);
         } catch (err) {
           console.warn("[XVD] download error:", err);
           flashResult(btn, false);
@@ -562,17 +639,20 @@
 
     // Запасной путь на случай, если данных по этому посту у нас нет.
     const img = visiblePhotoImg();
-    if (!img || !img.src) return null;
-    const found = lookupPhoto(baseMediaKey(img.src));
-    if (!found) return null;
-    return { info: found.info, idx: found.idx, photo: found.info.photos[found.idx] };
+    if (!img) return null;
+    const source = mediaImageSource(img, "media");
+    if (!source) return null;
+    const found = lookupPhoto(baseMediaKey(source));
+    if (found) return { photo: found.info.photos[found.idx] };
+    const fallback = photoInViewer(img, source);
+    return fallback ? { photo: fallback.info.photos[fallback.idx] } : null;
   }
 
   // Считаем площадь пересечения с экраном, а не собственный размер картинки:
   // у сдвинутых за край кадров карусели она нулевая.
   function visiblePhotoImg() {
-    const dialog = document.querySelector('div[aria-modal="true"], div[role="dialog"]');
-    const imgs = (dialog || document).querySelectorAll('img[src*="pbs.twimg.com/media/"]');
+    const dialog = [...document.querySelectorAll(VIEWER_SELECTOR)].find((el) => el.querySelector(PHOTO_SELECTOR));
+    const imgs = (dialog || document).querySelectorAll(PHOTO_SELECTOR);
     let best = null;
     let bestArea = 0;
     for (const img of imgs) {
@@ -610,31 +690,78 @@
     true
   );
 
-  function getTweetId(article) {
-    const links = article.querySelectorAll('a[href*="/status/"]');
-    for (const a of links) {
-      const match = a.getAttribute("href").match(/status\/(\d+)/);
-      if (match) return match[1];
+  function getTweetIdentity(article) {
+    const wrapper = article.closest('[role="link"][data-href]');
+    const href = wrapper?.getAttribute("data-href");
+    if (href) {
+      const wrapped = STATUS_PATH.exec(href.startsWith(location.origin + "/") ? href.slice(location.origin.length) : href);
+      if (wrapped) return wrapped;
     }
-    return null;
+    const links = article.querySelectorAll('a[href*="/status/"]');
+    let firstLink = null;
+    for (const a of links) {
+      if (a.origin !== location.origin || a.closest("article") !== article || a.closest('[data-testid="quoteTweet"]')) continue;
+      const match = STATUS_PATH.exec(a.pathname);
+      if (match && (a.querySelector("time") || a.getAttribute("aria-hidden") === "true")) return match;
+      firstLink ||= match;
+    }
+    return firstLink;
   }
 
   // У цитат медиа принадлежит вложенному твиту, а не внешнему —
   // тогда ищем владельца по картинкам внутри статьи.
   function resolveByImages(article) {
-    const imgs = article.querySelectorAll('img[src*="pbs.twimg.com/media/"]');
+    const imgs = article.querySelectorAll(PHOTO_SELECTOR);
     for (const img of imgs) {
-      if (!img.src) continue;
-      const match = lookupPhoto(baseMediaKey(img.src));
+      const source = mediaImageSource(img, "media");
+      if (!source) continue;
+      const match = lookupPhoto(baseMediaKey(source));
       if (match) return { tweetId: match.tweetId, info: match.info };
     }
     return null;
   }
 
+  function collectRenderedMedia(article, identity, visiblePhotos) {
+    const info = { screenName: identity[1], createdAt: null, photos: [], videos: [], gifs: [] };
+    const indices = new Map();
+    for (const img of article.querySelectorAll(PHOTO_SELECTOR)) {
+      if (img.closest("article") !== article) continue;
+      const source = mediaImageSource(img, "media");
+      if (!source) continue;
+      const photo = originalPhoto(source);
+      if (!photo) continue;
+      const key = baseMediaKey(photo.url);
+      if (!indices.has(key)) {
+        indices.set(key, info.photos.length);
+        info.photos.push(photo);
+      }
+      visiblePhotos.set(img, { tweetId: identity[2], info, idx: indices.get(key) });
+    }
+    const gifs = new Set();
+    for (const element of article.querySelectorAll('img[src*="tweet_video_thumb/"], img[srcset*="tweet_video_thumb/"], video')) {
+      if (element.closest("article") !== article) continue;
+      const isVideo = element.localName === "video";
+      const source = isVideo ? element.poster : mediaImageSource(element, "tweet_video_thumb");
+      const gif = /^https:\/\/pbs\.twimg\.com\/tweet_video_thumb\/([\w-]+)\./.exec(source || "");
+      if (gif) {
+        gifs.add(`https://video.twimg.com/tweet_video/${gif[1]}.mp4`);
+      } else if (isVideo) {
+        const url = element.currentSrc || element.src;
+        if (!/^https:\/\/video\.twimg\.com\/[^?#]+\.mp4(?:[?#]|$)/i.test(url)) continue;
+        if (url.startsWith("https://video.twimg.com/tweet_video/")) gifs.add(url);
+        else info.videos.push(url);
+      }
+    }
+    info.gifs = [...gifs];
+    return mediaCount(info) ? info : null;
+  }
+
   function scanTweets() {
-    const articles = document.querySelectorAll('article[data-testid="tweet"]');
+    const articles = document.querySelectorAll("article");
+    const visiblePhotos = new WeakMap();
     for (const article of articles) {
-      const tweetId = getTweetId(article);
+      const identity = getTweetIdentity(article);
+      const tweetId = identity?.[2];
       let info = tweetId ? mediaMap.get(tweetId) : null;
       let ownerId = tweetId;
 
@@ -646,10 +773,12 @@
         }
       }
 
-      if (info && ownerId) addTweetButton(article, ownerId, info);
+      // Разметка первого экрана может содержать фото раньше данных GraphQL.
+      if (!info && tweetId) info = collectRenderedMedia(article, identity, visiblePhotos);
+      addTweetButton(article, ownerId, info);
     }
     // Картинки ищем по всей странице — так кнопка работает и в ленте, и во вьювере.
-    addPhotoButtons();
+    addPhotoButtons(visiblePhotos);
   }
 
   // Твиттер мутирует DOM почти непрерывно, поэтому склеиваем серии
@@ -669,12 +798,14 @@
   }
 
   const observer = new MutationObserver(requestScan);
-  observer.observe(document.documentElement, {
+  observer.observe(document, {
     childList: true,
     subtree: true,
     attributes: true,
-    attributeFilter: ["src"],
+    attributeFilter: ["src", "srcset", "poster", "href", "data-href", "data-engagement-action"],
   });
+  // Устанавливаем приёмник сообщений до запуска внедрённого скрипта.
+  injectPageScript();
 
   requestScan();
 })();

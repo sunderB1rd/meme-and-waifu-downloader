@@ -19,11 +19,14 @@
   const API_PATTERN = /\/graphql\//i;
 
   function processTweetNode(node, found) {
-    const legacy = node.legacy;
-    if (!legacy) return;
+    const legacy = node.legacy || {};
 
     const tweetId = node.rest_id || legacy.id_str;
-    if (!tweetId) return;
+    if (typeof tweetId !== "string" || !/^\d+$/.test(tweetId)) return;
+
+    const mediaList = node.media_entities2 ?? legacy.extended_entities?.media ??
+      node.media_results?.result?.media ?? legacy.entities?.media;
+    if (!Array.isArray(mediaList) || !mediaList.length) return;
 
     const screenName =
       (node.core &&
@@ -38,36 +41,32 @@
         node.core.user_results.result.core.screen_name) ||
       null;
 
-    const createdAt = legacy.created_at || null;
-
-    const mediaList =
-      (legacy.extended_entities && legacy.extended_entities.media) ||
-      (legacy.entities && legacy.entities.media) ||
-      [];
+    const createdAt = Number(node.details?.created_at_ms) || node.details?.created_at ||
+      legacy.created_at || null;
 
     const videos = [];
     const gifs = [];
     const photos = [];
 
     for (const m of mediaList) {
-      if (m.type === "photo" && m.media_url_https) {
+      if (!m) continue;
+      const type = m.type || { Photo: "photo", Video: "video", AnimatedGif: "animated_gif" }[m.__typename];
+      if (type === "photo" && m.media_url_https) {
         // Сохраняем оригинальный формат: у Твиттера бывают и .jpg, и .png.
         // Принудительный format=jpg пережимал бы PNG с потерей качества.
         const extMatch = m.media_url_https.match(/\.(jpg|jpeg|png|webp)$/i);
         const ext = extMatch ? extMatch[1].toLowerCase() : "jpg";
         const base = m.media_url_https.replace(/\.(jpg|jpeg|png|webp)$/i, "");
         photos.push({ url: `${base}?format=${ext}&name=orig`, ext });
-      } else if (
-        (m.type === "video" || m.type === "animated_gif") &&
-        m.video_info &&
-        Array.isArray(m.video_info.variants)
-      ) {
-        const mp4s = m.video_info.variants.filter(
-          (v) => v.content_type === "video/mp4" && v.url
+      } else if (type === "video" || type === "animated_gif") {
+        const variants = m.video_info?.variants || m.media_results?.result?.stream_management?.variants;
+        if (!Array.isArray(variants)) continue;
+        const mp4s = variants.filter(
+          (v) => (v.content_type || v.type) === "video/mp4" && v.url
         );
         if (mp4s.length) {
           mp4s.sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0));
-          if (m.type === "animated_gif") {
+          if (type === "animated_gif") {
             gifs.push(mp4s[0].url);
           } else {
             videos.push(mp4s[0].url);
@@ -87,41 +86,74 @@
     }
   }
 
-  function extractMedia(root) {
-    const found = {};
+  function extractMedia(root, onPromise) {
+    const found = Object.create(null);
+    const visited = new WeakSet();
 
     function walk(node) {
-      if (!node || typeof node !== "object") return;
+      if (!node || typeof node !== "object" || visited.has(node)) return;
+      visited.add(node);
+      if (onPromise && node instanceof Promise) {
+        onPromise(node);
+        return;
+      }
       if (Array.isArray(node)) {
         for (const item of node) walk(item);
         return;
       }
-      if (node.legacy && (node.rest_id || node.legacy.id_str)) {
+      if (node.rest_id || node.legacy?.id_str) {
         try {
           processTweetNode(node, found);
         } catch (e) {
           /* ignore malformed node */
         }
       }
-      for (const key in node) {
-        walk(node[key]);
-      }
+      for (const value of Object.values(node)) walk(value);
     }
 
     walk(root);
     return found;
   }
 
-  function reportMedia(payload) {
+  function reportMedia(payload, onPromise) {
     let media;
     try {
-      media = extractMedia(payload);
+      media = extractMedia(payload, onPromise);
     } catch (e) {
       return;
     }
     if (Object.keys(media).length) {
       window.postMessage({ source: "xvd-extension", type: "media", data: media }, "*");
     }
+  }
+
+  // Первый экран x-web приходит в HTML. TanStack держит данные гидратации
+  // во временных объектах страницы, а отложенные значения — в промисах.
+  function observeInitialMedia() {
+    const watchedPromises = new WeakSet();
+    function watchPromise(promise) {
+      if (watchedPromises.has(promise)) return;
+      watchedPromises.add(promise);
+      promise.then((payload) => reportMedia(payload, watchPromise)).catch(() => {});
+    }
+    function readInitialMedia() {
+      reportMedia([window.$_TSR?.router, window.$R?.tsr], watchPromise);
+    }
+
+    readInitialMedia();
+    if (document.readyState !== "loading") return;
+    // Скрипт гидратации может удалить свой узел сразу после выполнения.
+    const observer = new MutationObserver((records) => {
+      const scriptChanged = records.some(({ addedNodes, removedNodes }) =>
+        [...addedNodes, ...removedNodes].some((node) => node.nodeName === "SCRIPT")
+      );
+      if (scriptChanged) readInitialMedia();
+    });
+    observer.observe(document, { childList: true, subtree: true });
+    document.addEventListener("DOMContentLoaded", () => {
+      observer.disconnect();
+      readInitialMedia();
+    }, { once: true });
   }
 
   // --- fetch hook ---
@@ -159,13 +191,15 @@
     if (this.__xvdUrl && API_PATTERN.test(this.__xvdUrl)) {
       this.addEventListener("load", function () {
         try {
-          const data = JSON.parse(this.responseText);
+          const data = this.responseType === "json" ? this.response : JSON.parse(this.responseText);
           reportMedia(data);
         } catch (e) {
           /* ignore */
         }
-      });
+      }, { once: true });
     }
     return origSend.apply(this, args);
   };
+
+  observeInitialMedia();
 })();

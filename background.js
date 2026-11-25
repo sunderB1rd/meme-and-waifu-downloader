@@ -11,6 +11,12 @@ if (typeof importScripts === "function" && !globalThis.XVDShared) {
 
   const { isAllowedMediaUrl } = globalThis.XVDShared;
 
+  function downloadFailure(error) {
+    const canceled = /\bUSER_CANCELED\b|\bcancell?ed\b/i.test(error);
+    const retryable = /^(NETWORK_|SERVER_)/.test(error);
+    return { success: false, error, canceled, retryable };
+  }
+
   function waitForDownload(downloadId) {
     return new Promise((resolve) => {
       let done = false;
@@ -23,23 +29,23 @@ if (typeof importScripts === "function" && !globalThis.XVDShared) {
         resolve(result);
       }
 
-      function listener(delta) {
-        if (delta.id !== downloadId) return;
-        if (delta.state && delta.state.current === "complete") {
-          finish({ success: true });
-        } else if (delta.state && delta.state.current === "interrupted") {
-          finish({
-            success: false,
-            error: (delta.error && delta.error.current) || "interrupted",
-          });
-        }
+      function readState(state, error) {
+        if (state === "complete") finish({ success: true });
+        if (state === "interrupted") finish(downloadFailure(error || "interrupted"));
       }
 
-      browser.downloads.onChanged.addListener(listener);
+      function listener(delta) {
+        if (delta.id === downloadId) readState(delta.state?.current, delta.error?.current);
+      }
 
       // Подстраховка: крупное видео может качаться дольше, чем нам стоит держать
       // индикатор. Считаем запуск успешным — статус виден в менеджере загрузок.
       const timer = setTimeout(() => finish({ success: true, pending: true }), 20000);
+      browser.downloads.onChanged.addListener(listener);
+      // Быстрая загрузка может завершиться до установки слушателя.
+      browser.downloads.search({ id: downloadId }).then(([item]) => {
+        if (item) readState(item.state, item.error);
+      }).catch(() => {});
     });
   }
 
@@ -55,7 +61,7 @@ if (typeof importScripts === "function" && !globalThis.XVDShared) {
       });
       return await waitForDownload(downloadId);
     } catch (e) {
-      return { success: false, error: e && e.message ? e.message : String(e) };
+      return downloadFailure(e?.message || String(e));
     }
   }
 
@@ -83,12 +89,43 @@ if (typeof importScripts === "function" && !globalThis.XVDShared) {
       // отброшен по размеру.
       const declared = Number(res.headers.get("content-length"));
       if (maxBytes && Number.isFinite(declared) && declared > maxBytes) {
+        await res.body?.cancel().catch(() => {});
         return { success: false, error: "source is too large" };
       }
-      const buf = new Uint8Array(await res.arrayBuffer());
+      let buf;
+      if (maxBytes && res.body) {
+        const reader = res.body.getReader();
+        const chunks = [];
+        let size = 0;
+        try {
+          for (;;) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            size += value.byteLength;
+            if (size > maxBytes) {
+              await reader.cancel().catch(() => {});
+              return { success: false, error: "source is too large" };
+            }
+            chunks.push(value);
+          }
+        } finally {
+          reader.releaseLock();
+        }
+        buf = new Uint8Array(size);
+        let offset = 0;
+        for (const chunk of chunks) {
+          buf.set(chunk, offset);
+          offset += chunk.byteLength;
+        }
+      } else {
+        buf = new Uint8Array(await res.arrayBuffer());
+      }
+      if (maxBytes && buf.length > maxBytes) {
+        return { success: false, error: "source is too large" };
+      }
       return { success: true, base64: bytesToBase64(buf), size: buf.length };
     } catch (e) {
-      return { success: false, error: e && e.message ? e.message : String(e) };
+      return { success: false, error: e?.message || String(e) };
     }
   }
 
@@ -174,7 +211,7 @@ if (typeof importScripts === "function" && !globalThis.XVDShared) {
     } catch (e) {
       // Сюда попадает и отмена диалога сохранения. Повторять через ссылку нельзя:
       // пользователь увидит второе окно, хотя он уже отказался.
-      return { success: false, error: e && e.message ? e.message : String(e) };
+      return downloadFailure(e?.message || String(e));
     } finally {
       // Отзывать сразу нельзя — загрузка ещё читает данные по этой ссылке
       setTimeout(() => revokeBlobUrl(url), 60000);
